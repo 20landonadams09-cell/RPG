@@ -218,8 +218,8 @@ namespace BasicRPG.Allomancy
 
             DrawSightLines(origin, primary, primaryLOS, steelBurning);
 
-            bool wantPush = steelBurning && Input.GetKey(Keybinds.SteelPush);
-            bool wantPull = ironBurning  && Input.GetKey(Keybinds.IronPull);
+            bool wantPush = steelBurning && Keybinds.PushHeld();
+            bool wantPull = ironBurning  && Keybinds.PullHeld();
             if (primary == null || (!wantPush && !wantPull)) return;
 
             // Sight sees through walls; force does not (unless disabled).

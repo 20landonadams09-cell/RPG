@@ -2,6 +2,7 @@ using UnityEngine;
 using BasicRPG.Stats;
 using BasicRPG.Interaction;
 using BasicRPG.Combat;
+using BasicRPG.Allomancy;
 
 namespace BasicRPG.Player
 {
@@ -86,7 +87,7 @@ namespace BasicRPG.Player
             Vector3 inputDir = new Vector3(h, 0f, v).normalized;
             bool hasInput = inputDir.sqrMagnitude > 0.01f;
 
-            bool sprintHeld = Input.GetKey(KeyCode.LeftShift);
+            bool sprintHeld = Keybinds.SprintHeld();
             bool isSprinting = hasInput && sprintHeld && stamina != null &&
                                stamina.TryConsume(sprintStaminaCost * Time.deltaTime);
             float speed = isSprinting ? sprintSpeed : walkSpeed;
@@ -106,7 +107,7 @@ namespace BasicRPG.Player
             if (controller.isGrounded)
             {
                 verticalVel = -2f; // keep the controller pinned to the ground
-                if (!locked && Input.GetButtonDown("Jump"))
+                if (!locked && Keybinds.JumpDown())
                     verticalVel = Mathf.Sqrt(jumpHeight * allomancyJumpScale * -2f * gravity);
             }
             else

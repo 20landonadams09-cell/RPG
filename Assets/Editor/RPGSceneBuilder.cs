@@ -54,11 +54,12 @@ public static class RPGSceneBuilder
         if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
 
         SetupURP();
+        EnsureRightStickAxes();
         BuildScene();
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Log("Build complete. Press Play. Controls: WASD move, Shift sprint, Space jump, mouse look, E interact, I inventory, K damage, H heal, LMB attack, RMB block, C dodge, Tab metal wheel, B burn metal, X drink metal, 1-8 select metal, F steelpush, Q ironpull.");
+        Log("Build complete. Press Play. Controls: WASD move, Shift sprint, Space jump, mouse look, E interact, I inventory, K damage, H heal, LMB attack, RMB block, C dodge, Tab metal wheel, B burn metal, X drink metal, 1-8 select metal, F steelpush, Q ironpull. GAMEPAD (DualSense): left stick move, right stick look, Cross jump, Circle dodge, Square interact, Triangle burn, L1 block, R1 attack, L2 pull, R2 push, Share wheel, Options flare, L3 sprint, R3 inventory, Dpad Up drink, Dpad Left save, Dpad Right load.");
     }
 
     // ---------------------------------------------------------------- URP ----
@@ -115,6 +116,69 @@ public static class RPGSceneBuilder
         GraphicsSettings.defaultRenderPipeline = pipeline;
         EditorUtility.SetDirty(pipeline);
         Log("URP assigned as the default render pipeline.");
+    }
+
+    // ---------------------------------------------------------- Input axes ----
+    // The classic Input Manager has no default right-stick axis (Mouse X/Y are mouse-only), so
+    // the DualSense right stick can't drive the camera out of the box. Add two Joystick Axis
+    // entries — "RightStickX" (physical axis 2) and "RightStickY" (physical axis 3, inverted so
+    // up on the stick looks up) — if they aren't already present. This is project-wide
+    // (ProjectSettings/InputManager.asset), so it runs once; idempotent. If the right stick is
+    // dead or on the wrong axes on your controller/backend, tweak these in
+    // Project Settings → Input Manager (axis index is the "Axis" dropdown per entry).
+    static void EnsureRightStickAxes()
+    {
+        Object[] assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/InputManager.asset");
+        if (assets == null || assets.Length == 0)
+        {
+            LogWarning("InputManager.asset not found — right-stick camera axes not added (gamepad look will be inert).");
+            return;
+        }
+        SerializedObject so = new SerializedObject(assets[0]);
+        SerializedProperty axes = so.FindProperty("m_Axes");
+        if (axes == null)
+        {
+            LogWarning("m_Axes not found on InputManager — right-stick camera axes not added.");
+            return;
+        }
+        bool addedX = EnsureJoyAxis(axes, "RightStickX", axisIndex: 2, invert: false);
+        bool addedY = EnsureJoyAxis(axes, "RightStickY", axisIndex: 3, invert: true);
+        so.ApplyModifiedPropertiesWithoutBroadcast();
+        if (addedX || addedY)
+        {
+            EditorUtility.SetDirty(assets[0]);
+            Log("Added right-stick Input Manager axes (RightStickX=axis 2, RightStickY=axis 3 inverted). If the right stick is dead/misaligned, adjust in Project Settings → Input Manager.");
+        }
+    }
+
+    // Append a Joystick Axis entry named `name` (type=2) if none with that name exists. Returns
+    // true if a new entry was inserted. Field names match the InputManager.asset YAML keys.
+    static bool EnsureJoyAxis(SerializedProperty axes, string name, int axisIndex, bool invert)
+    {
+        for (int i = 0; i < axes.arraySize; i++)
+        {
+            SerializedProperty n = axes.GetArrayElementAtIndex(i).FindPropertyRelative("m_Name");
+            if (n != null && n.stringValue == name) return false; // already present
+        }
+        int idx = axes.arraySize;
+        axes.InsertArrayElementAtIndex(idx);
+        SerializedProperty a = axes.GetArrayElementAtIndex(idx);
+        a.FindPropertyRelative("m_Name").stringValue = name;
+        a.FindPropertyRelative("descriptiveName").stringValue = "";
+        a.FindPropertyRelative("descriptiveNegativeName").stringValue = "";
+        a.FindPropertyRelative("negativeButton").stringValue = "";
+        a.FindPropertyRelative("positiveButton").stringValue = "";
+        a.FindPropertyRelative("altNegativeButton").stringValue = "";
+        a.FindPropertyRelative("altPositiveButton").stringValue = "";
+        a.FindPropertyRelative("gravity").floatValue = 0f;
+        a.FindPropertyRelative("dead").floatValue = 0.19f;
+        a.FindPropertyRelative("sensitivity").floatValue = 1f;
+        a.FindPropertyRelative("snap").boolValue = false;
+        a.FindPropertyRelative("invert").boolValue = invert;
+        a.FindPropertyRelative("type").intValue = 2;   // 2 = Joystick Axis
+        a.FindPropertyRelative("axis").intValue = axisIndex;
+        a.FindPropertyRelative("joyNum").intValue = 0; // 0 = all joysticks
+        return true;
     }
 
     // --------------------------------------------------------------- Scene ----
@@ -449,6 +513,7 @@ public static class RPGSceneBuilder
         if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
 
         SetupURP();
+        EnsureRightStickAxes();
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         BuildPlayerCore(out GameObject player, out _, out Transform hudCanvas,
@@ -481,6 +546,7 @@ public static class RPGSceneBuilder
         if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
 
         SetupURP();
+        EnsureRightStickAxes();
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         BuildPlayerCore(out GameObject player, out _, out Transform hudCanvas,
@@ -617,6 +683,7 @@ public static class RPGSceneBuilder
         if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
 
         SetupURP();
+        EnsureRightStickAxes();
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         BuildPlayerCore(out GameObject player, out _, out Transform hudCanvas,
@@ -709,6 +776,7 @@ public static class RPGSceneBuilder
         if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
 
         SetupURP();
+        EnsureRightStickAxes();
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         BuildPlayerCore(out GameObject player, out _, out Transform hudCanvas,
@@ -780,6 +848,7 @@ public static class RPGSceneBuilder
         if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
 
         SetupURP();
+        EnsureRightStickAxes();
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         BuildPlayerCore(out GameObject player, out _, out Transform hudCanvas,

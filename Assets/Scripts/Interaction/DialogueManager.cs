@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using BasicRPG.Allomancy;
 
 namespace BasicRPG.Interaction
 {
@@ -49,7 +50,7 @@ namespace BasicRPG.Interaction
         void Update()
         {
             if (!IsOpen) return;
-            if (Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
+            if (Keybinds.DialogueAdvance())
                 Advance();
         }
 

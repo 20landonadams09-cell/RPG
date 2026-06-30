@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using BasicRPG.Items;
+using BasicRPG.Allomancy;
 
 namespace BasicRPG.Interaction
 {
@@ -42,7 +43,11 @@ namespace BasicRPG.Interaction
             }
 
             // JustClosed guards against the E that ended a dialogue reopening it this frame.
-            if (Input.GetKeyDown(interactKey) && current != null && !DialogueManager.JustClosed)
+            // Reads keyboard E OR gamepad Square (Keybinds.InteractDown); the serialized interactKey
+            // is honored too so the Inspector default still works.
+            bool pressed = (interactKey != KeyCode.None && Input.GetKeyDown(interactKey))
+                           || Keybinds.InteractDown();
+            if (pressed && current != null && !DialogueManager.JustClosed)
             {
                 current.Interact(gameObject);
             }

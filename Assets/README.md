@@ -98,6 +98,41 @@ Press the **Play** ▶ button.
 | F5             | Save game                    |
 | F9             | Load game                    |
 
+### Gamepad (DualSense / PS5) — optional, classic Input Manager only
+
+A plugged-in DualSense works alongside the keyboard — every action reads keyboard **or**
+gamepad. The left stick moves (it shares the default `Horizontal`/`Vertical` axes); the right
+stick orbits the camera (custom `RightStickX`/`RightStickY` axes the builder adds to
+`ProjectSettings/InputManager.asset`). The metal wheel opens on Share and is steered with the
+left stick; a face button confirms.
+
+| Pad button          | Action                          |
+|---------------------|---------------------------------|
+| Left stick          | Move                            |
+| Right stick         | Orbit camera                    |
+| Cross ✕             | Jump / dialogue advance / wheel confirm |
+| Circle ○            | Dodge                           |
+| Square □            | Interact / dialogue advance / wheel confirm |
+| Triangle △          | Toggle burning                  |
+| L1 (hold)           | Block                           |
+| R1                  | Attack / wheel confirm          |
+| L2 (hold)           | Ironpull (Q)                    |
+| R2 (hold)           | Steelpush (F)                   |
+| Share               | Open/close metal wheel          |
+| Options (hold)      | Flare                           |
+| L3 (hold)           | Sprint                          |
+| R3 (click)          | Toggle inventory                |
+| Dpad Up             | Drink a metal                   |
+| Dpad Left           | Save                            |
+| Dpad Right          | Load                            |
+
+> Button indices are SDL/Linux best-guesses and are backend-dependent. If a button is off
+> (e.g. L1/R1 swapped, a trigger reads as a button or an axis), tweak the `Pad*` constants in
+> `Assets/Scripts/Allomancy/Keybinds.cs`. If the right stick is dead or on the wrong axes,
+> adjust the `RightStickX`/`RightStickY` entries (Axis dropdown) in
+> **Project Settings → Input Manager**. Drink/Save/Load/Refill-all/number-key selection stay
+> keyboard-only by default.
+
 The HUD (top-left) shows health (red) and stamina (green). Sprinting drains stamina;
 release Shift and it regenerates after ~1s. When stamina hits zero you're "exhausted"
 and can't sprint again until the bar recovers above ~15%.

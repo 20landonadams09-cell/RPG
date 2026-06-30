@@ -3,6 +3,7 @@ using UnityEngine;
 using BasicRPG.Stats;
 using BasicRPG.Items;
 using BasicRPG.Interaction;
+using BasicRPG.Allomancy;
 
 namespace BasicRPG.Combat
 {
@@ -68,16 +69,16 @@ namespace BasicRPG.Combat
             // No combat while dialogue or inventory owns input.
             if (InteractionLock.IsLocked) { isBlocking = false; return; }
 
-            isBlocking = !isDodging && Input.GetMouseButton(1);
+            isBlocking = !isDodging && Keybinds.BlockHeld();
 
-            if (!isBlocking && !isDodging && Input.GetMouseButtonDown(0)
+            if (!isBlocking && !isDodging && Keybinds.AttackDown()
                 && Time.time >= lastAttackTime + attackCooldown)
             {
                 lastAttackTime = Time.time;
                 StartCoroutine(AttackRoutine());
             }
 
-            if (!isDodging && Input.GetKeyDown(KeyCode.C)
+            if (!isDodging && Keybinds.DodgeDown()
                 && Time.time >= lastDodgeTime + dodgeCooldown
                 && stamina != null && stamina.TryConsume(dodgeStaminaCost))
             {

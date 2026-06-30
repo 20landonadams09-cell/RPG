@@ -14,6 +14,7 @@ namespace BasicRPG.Player
         [SerializeField] private float distance = 6f;
         [SerializeField] private float height = 2.5f;
         [SerializeField] private float mouseSensitivity = 3f;
+        [SerializeField] private float padSensitivity = 3f;   // right-stick look (DualSense)
         [SerializeField] private float pitchMin = -10f;
         [SerializeField] private float pitchMax = 60f;
         [SerializeField] private float followSmooth = 10f;
@@ -35,8 +36,14 @@ namespace BasicRPG.Player
             // Don't orbit while a dialogue/inventory UI is open (cursor is free for clicking).
             if (!InteractionLock.IsLocked)
             {
-                yaw += Input.GetAxis("Mouse X") * mouseSensitivity;
-                pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity;
+                // Mouse look + right-stick look (DualSense). The pad axes ("RightStickX/Y") are
+                // added to InputManager.asset by the scene builder; if absent, GetAxis returns 0
+                // and mouse-only play is unaffected. RightStickY is inverted in the Input Manager so
+                // up on the stick looks up (pitch decreases) — same sign as Mouse Y.
+                yaw += Input.GetAxis("Mouse X") * mouseSensitivity
+                       + Input.GetAxis("RightStickX") * padSensitivity;
+                pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity
+                         + Input.GetAxis("RightStickY") * padSensitivity;
                 pitch = Mathf.Clamp(pitch, pitchMin, pitchMax);
             }
 

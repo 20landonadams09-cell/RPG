@@ -54,7 +54,7 @@ namespace BasicRPG.Allomancy
             // Dialogue/inventory own input while open — pause allomancy.
             if (InteractionLock.IsLocked) return;
 
-            if (Input.GetKeyDown(Keybinds.BurnToggle))
+            if (Keybinds.BurnDown())
                 ToggleBurning();
 
             // Number keys 1–8 select the active metal.
@@ -70,13 +70,13 @@ namespace BasicRPG.Allomancy
             // Drink/refill are not part of any tutorial step (test scenes start at full reserve) —
             // hold them while the tutorial runs so the player can't waste ingots or debug-refill
             // mid-step. Burn/select/flare above are intentionally NOT gated (the tutorial needs them).
-            if (Input.GetKeyDown(Keybinds.DrinkVial) && !InteractionLock.TutorialActive) Drink();
-            if (Input.GetKeyDown(Keybinds.RefillAll) && !InteractionLock.TutorialActive) RefillAll();
+            if (Keybinds.DrinkDown() && !InteractionLock.TutorialActive) Drink();
+            if (Keybinds.RefillDown() && !InteractionLock.TutorialActive) RefillAll();
 
             // Flare ramps up while holding Flare + burning with reserve left; otherwise settles
             // back to 1. Flaring multiplies the active metal's drain (the cost of burning harder)
             // and is read by effect components to scale their intensity.
-            bool flaring = isBurning && Input.GetKey(Keybinds.Flare) && GetReserve(activeMetal) > 0f;
+            bool flaring = isBurning && Keybinds.FlareHeld() && GetReserve(activeMetal) > 0f;
             flare = Mathf.MoveTowards(flare, flaring ? FlareMax : 1f,
                 (flaring ? FlareRamp : FlareRamp * 2f) * Time.deltaTime);
 

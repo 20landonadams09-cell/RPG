@@ -34,8 +34,8 @@ namespace BasicRPG.Player
         void Update()
         {
             if (InteractionLock.IsLocked || InteractionLock.TutorialActive) return;
-            if (Input.GetKeyDown(Keybinds.SaveGame)) Save();
-            if (Input.GetKeyDown(Keybinds.LoadGame)) Load();
+            if (Keybinds.SaveDown()) Save();
+            if (Keybinds.LoadDown()) Load();
         }
 
         // ── Save ───────────────────────────────────────────────────────────────────────

@@ -96,17 +96,17 @@ namespace BasicRPG.Allomancy
             }
 
             // Open / close input (runs even while InteractionLock is held by us).
-            if (Input.GetKeyDown(Keybinds.MetalWheel))
+            if (Keybinds.WheelDown())
             {
                 if (!isOpen && !InteractionLock.IsLocked) Open();
-                else if (isOpen) Close(confirm: false);   // Tab-again cancels (no confirm)
+                else if (isOpen) Close(confirm: false);   // Tab/Share-again cancels (no confirm)
                 return;
             }
 
             if (!isOpen) { AnimateMist(); return; }
 
             if (Input.GetKeyDown(KeyCode.Escape)) { Close(confirm: false); return; }
-            if (Input.GetMouseButtonDown(0)) { Close(confirm: true); return; }
+            if (Keybinds.WheelConfirmDown()) { Close(confirm: true); return; }
 
             HandleHover();
             RefreshAll();
@@ -165,6 +165,22 @@ namespace BasicRPG.Allomancy
         {
             Vector2 center = new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
             Vector2 dir = (Vector2)Input.mousePosition - center;
+
+            // Gamepad: when the left stick is deflected past its deadzone, it drives the wheel
+            // instead of the mouse. The default "Horizontal"/"Vertical" Input Manager entries
+            // already aggregate the left stick (axis 0/1, Vertical inverted so up=+1), matching
+            // the wheel's screen-space convention (up = +y). Gated on a joystick actually being
+            // connected (Input.GetJoystickNames) so keyboard-only players don't accidentally steer
+            // the wheel by holding WASD while picking.
+            bool padConnected = false;
+            foreach (var n in Input.GetJoystickNames())
+                if (!string.IsNullOrEmpty(n)) { padConnected = true; break; }
+            if (padConnected)
+            {
+                Vector2 stick = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+                if (stick.sqrMagnitude > 0.25f) dir = stick;
+            }
+
             if (dir.magnitude <= HoverDeadzone) return;
             dir.Normalize();
 

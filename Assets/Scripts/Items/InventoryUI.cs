@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using BasicRPG.Interaction;
+using BasicRPG.Allomancy;
 
 namespace BasicRPG.Items
 {
@@ -60,7 +61,7 @@ namespace BasicRPG.Items
             // Don't let the player pop the inventory open while the guided tutorial is running
             // (the tutorial freezes the world but leaves allomancy input flowing; inventory would
             // pull them out of the step). The tutorial releases this on finish/destroy.
-            if (Input.GetKeyDown(KeyCode.I) && !InteractionLock.TutorialActive) Toggle();
+            if (Keybinds.InventoryDown() && !InteractionLock.TutorialActive) Toggle();
         }
 
         void Toggle()
