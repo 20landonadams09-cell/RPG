@@ -38,6 +38,7 @@ namespace BasicRPG.Allomancy
         private Font font;
         private Slot[] slots;
         private Text centerText;
+        private Text descriptionText;   // one-line Allomantic effect, shown under the metal name
 
         // Mist ribbons
         private Image[] mistImages;
@@ -268,6 +269,8 @@ namespace BasicRPG.Allomancy
             MetalDefinition def = MetalDatabase.Get(s.metal);
             centerText.text = def != null ? def.displayName : s.metal.ToString();
             centerText.color = s.theme;
+            if (descriptionText != null)
+                descriptionText.text = def != null && !string.IsNullOrEmpty(def.description) ? def.description : "";
         }
 
         // ── Build ─────────────────────────────────────────────────────────────────
@@ -332,6 +335,19 @@ namespace BasicRPG.Allomancy
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 24f),
                 new Vector2(600f, 40f), 30, TextAnchor.MiddleCenter);
             centerText.color = Color.white;
+
+            // One-line Allomantic effect, wrapped + auto-shrunk, sitting just under the metal name
+            // inside the wheel's empty center (clear of the slot ring). Neutral light-grey so it
+            // reads regardless of the hovered metal's theme color (the name above already carries it).
+            descriptionText = MakeText(canvasObj.transform, "Description", new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -58f),
+                new Vector2(360f, 96f), 15, TextAnchor.MiddleCenter);
+            descriptionText.color = new Color(0.82f, 0.85f, 0.92f, 0.95f);
+            descriptionText.horizontalOverflow = HorizontalWrapMode.Wrap;
+            descriptionText.verticalOverflow = VerticalWrapMode.Overflow;
+            descriptionText.resizeTextForBestFit = true;
+            descriptionText.resizeTextMaxSize = 16;
+            descriptionText.resizeTextMinSize = 11;
 
             Text hint = MakeText(canvasObj.transform, "Hint", new Vector2(0.5f, 0f),
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 60f),

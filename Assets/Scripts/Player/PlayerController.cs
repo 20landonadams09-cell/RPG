@@ -30,6 +30,9 @@ namespace BasicRPG.Player
         private float turnSmoothVel;
         private float verticalVel;
         private readonly Collider[] probeBuffer = new Collider[8];
+        // Previous frame's grounded state, for the one-frame isAboutToLand pulse (see DriveAnimator).
+        // Starts true so the spawn-snap (Start's grounding Move) isn't mistaken for a landing.
+        private bool wasGrounded = true;
 
         // Optional humanoid locomotion animator (Erbium model + Character.controller). The builder
         // wires it when the Erbium assets are present; null falls back to the plain capsule visual.
@@ -153,11 +156,33 @@ namespace BasicRPG.Player
             anim.SetFloat("verInput", v);
             anim.SetFloat("inputMagnitude", Mathf.Clamp01(new Vector3(h, 0f, v).magnitude));
             anim.SetFloat("groundVelocity", groundVel.magnitude);
-            // isGrounded isn't refreshed by a zero-length Move, so during a timeScale=0 freeze it
-            // can read false even when the player is plainly standing — and the Animator would then
-            // sit in the Falling pose for the whole tutorial. A short downward probe (which works
-            // regardless of timeScale) backstops it so the humanoid stays in idle while grounded.
-            anim.SetBool("isFalling", !(controller.isGrounded || GroundProbe()));
+
+            // The Erbium Character.controller models a fall + landing as TWO bools:
+            //   isFalling      — airborne; an AnyState transition (isFalling && !isAboutToLand)
+            //                    sends idle → fallingIdle.
+            //   isAboutToLand  — a ONE-FRAME pulse on the frame we touch down. Its AnyState
+            //                    transition (isAboutToLand && !isFalling) is the only way out of
+            //                    fallingIdle into the fallingToIdle/fallingToRoling landing clips,
+            //                    which then exit back to idle on their own exit time. Skip that
+            //                    pulse and the humanoid lands but is stuck posing the fall forever —
+            //                    the "stays in falling after a jump" bug. (wasGrounded starts true
+            //                    so the spawn-snap isn't mistaken for a landing.)
+            //
+            // isGrounded isn't refreshed by a zero-length Move, so a frozen tutorial (timeScale 0)
+            // can read false even when the player is plainly standing; a short downward probe
+            // (works regardless of timeScale) backstops it so the humanoid stays in idle grounded.
+            bool grounded = controller.isGrounded || GroundProbe();
+            if (grounded)
+            {
+                anim.SetBool("isFalling", false);
+                anim.SetBool("isAboutToLand", !wasGrounded); // pulse exactly on the landing frame
+            }
+            else
+            {
+                anim.SetBool("isFalling", true);
+                anim.SetBool("isAboutToLand", false);
+            }
+            wasGrounded = grounded;
         }
 
         /// <summary>True if there's solid ground just under the capsule's base. Used to keep the

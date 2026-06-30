@@ -102,6 +102,43 @@ of the screen (out of the way of the action).
 
 ---
 
+## Allomantic metals — what each does
+
+Open the wheel (**Tab / Share**) and hover a metal: its name + a one-line effect appears in the
+center. The 8 **basic** metals are burnable now (select, then **B / △** to burn); the 8 **higher**
+metals are shown greyed/locked — they're part of the framework but their effects aren't in yet.
+
+### Basic metals (burnable)
+| Metal | Allomantic effect (in-game) | Keys |
+|-------|------------------------------|------|
+| **Iron** | **Ironpull** — yank yourself toward a nearby metal anchor | hold **Q / L2** (Iron burning) |
+| **Steel** | **Steelpush** — launch yourself off a nearby metal anchor | hold **F / R2** (Steel burning) |
+| **Pewter** | **Physical enhancement** — hits harder, runs/jumps farther, tanks hits, mends. Burn too long then stop → **drag crash** | burn **B / △** |
+| **Tin** | **Enhanced senses** — night vision, hearing, scent pings, tremorsense. Bright light/loud noise → **sensory overload** | burn **B / △** |
+| **Copper** | **Coppercloud** — hide your allomancy and suppress nearby enemy allomancers | burn **B / △** |
+| **Bronze** | **Seeking** — hear allomantic pulses from enemy allomancers, through walls | burn **B / △** |
+| **Zinc** | **Riot** — inflame nearby enemies' emotions (hyper-aggressive, they swarm) | burn **B / △** |
+| **Brass** | **Soothe** — dampen nearby enemies' emotions (calm, slow, barely notice you) | burn **B / △** |
+
+> Hold **R / Options** to **flare** (burn harder) — stronger effect, faster drain. **X / Dpad↑**
+> drinks a metal to refill its reserve. **1–8** selects the active basic metal fast.
+
+### Higher metals (locked — framework only for now)
+| Metal | Allomantic effect (lore, not yet implemented) |
+|-------|-----------------------------------------------|
+| **Gold** | See a vision of your alternate past self |
+| **Electrum** | See shadows of your own near future |
+| **Cadmium** | Slow time in a bubble around you |
+| **Bendalloy** | Speed up time in a bubble around you |
+| **Aluminum** | Instantly wipe your own metal reserves |
+| **Duralumin** | Flash-consume every burning metal in one huge burst |
+| **Chromium** | By touch, wipe another allomancer's reserves |
+| **Nicrosil** | By touch, surge another allomancer's burning metals |
+
+> Feruchemy (store) and Hemalurgy (steal) aren't in the game — this is an Allomancy-only build.
+
+---
+
 ## If something's broken
 
 - **Red errors in the Console** during build or play → copy them and send them over.

@@ -74,6 +74,10 @@ namespace BasicRPG.Combat
         private float verticalVel = -2f;
         private bool attacking;
         private Color baseTint = Color.white;
+        private readonly Collider[] probeBuffer = new Collider[8];
+        // Previous frame's grounded state for the one-frame isAboutToLand pulse (see
+        // DriveEnemyAnimator). Starts true so the spawn-snap isn't mistaken for a landing.
+        private bool wasGrounded = true;
 
         // External shove from Steelpush (Iron/Steel). Integrated into Move and decays.
         private Vector3 externalPushVel;
@@ -208,7 +212,43 @@ namespace BasicRPG.Combat
             anim.SetFloat("verInput", mag);
             anim.SetFloat("inputMagnitude", mag);
             anim.SetFloat("groundVelocity", speed);
-            anim.SetBool("isFalling", !controller.isGrounded);
+
+            // Same fall/landing model as PlayerController.DriveAnimator: the Erbium controller
+            // needs a one-frame isAboutToLand pulse to exit fallingIdle into a landing clip, else
+            // a shoved/jumping enemy lands and is stuck posing the fall. GroundProbe backstops
+            // isGrounded during a frozen tutorial (zero-length Moves don't refresh it) so a
+            // grounded enemy reads grounded and stays in idle at spawn instead of a perpetual fall.
+            bool grounded = controller.isGrounded || GroundProbe();
+            if (grounded)
+            {
+                anim.SetBool("isFalling", false);
+                anim.SetBool("isAboutToLand", !wasGrounded); // pulse exactly on the landing frame
+            }
+            else
+            {
+                anim.SetBool("isFalling", true);
+                anim.SetBool("isAboutToLand", false);
+            }
+            wasGrounded = grounded;
+        }
+
+        /// <summary>True if there's solid ground just under the capsule's base — backstops
+        /// CharacterController.isGrounded during a frozen tutorial (a zero-length Move doesn't
+        /// refresh it). Ignores the enemy's own colliders, its model's renderers, and triggers.</summary>
+        bool GroundProbe()
+        {
+            if (controller == null) return false;
+            Vector3 center = transform.position + Vector3.up * (-controller.height * 0.5f + 0.1f);
+            int n = Physics.OverlapSphereNonAlloc(center, 0.2f, probeBuffer);
+            for (int i = 0; i < n; i++)
+            {
+                Collider c = probeBuffer[i];
+                if (c == null || c.isTrigger) continue;
+                if (c == controller) continue;                  // own CharacterController
+                if (c.transform == transform || c.transform.IsChildOf(transform)) continue; // own model
+                return true;
+            }
+            return false;
         }
 
         void PatrolMove()
