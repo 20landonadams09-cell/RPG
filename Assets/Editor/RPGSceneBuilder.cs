@@ -618,11 +618,11 @@ public static class RPGSceneBuilder
 
         // Step-by-step tutorial (freezes the world while teaching, advances on each action).
         BuildTutorial("Tin — Enhanced Senses", new TutorialOverlay.TutorialStep[] {
-            S("Tin — enhanced senses. The arena is nearly pitch black. Press TAB to open the metal wheel.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Tin — enhanced senses. The arena is nearly pitch black. Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Tin (slot 4) or press 4 to make it the active metal.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Tin),
             S("Close the wheel (Esc or click) if it's open, then press B to burn Tin — the world brightens (night vision).", TutorialOverlay.TutorialStepType.StartBurning, true),
             S("Now WALK to the glowing light to feel sensory overload (the cost of Tin). The arena is live — move!", TutorialOverlay.TutorialStepType.FeelOverload, false),
-            S("Overload whites out the screen, muffles audio and slows you — step away to recover. Hold R to flare (sharper but faster overload + drain). Tutorial complete — explore!", TutorialOverlay.TutorialStepType.AnyKey, false),
+            FinishStep("Overload whites out the screen, muffles audio and slows you — step away to recover. Hold R to flare (sharper but faster overload + drain). Tutorial complete — press Enter (or Dpad↓) when you're done exploring."),
         });
         Log("Tin test: bright-light hazard + tutorial created.");
     }
@@ -662,10 +662,11 @@ public static class RPGSceneBuilder
 
         // Step-by-step tutorial (freezes the world while teaching, advances on each action).
         BuildTutorial("Pewter — Physical Enhancement", new TutorialOverlay.TutorialStep[] {
-            S("Pewter — physical enhancement. Press TAB to open the metal wheel.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Pewter — physical enhancement. Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Pewter (slot 3) or press 3 to make it the active metal.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Pewter),
             S("Close the wheel (Esc or click) if it's open, then press B to burn Pewter — you're stronger, faster, tougher.", TutorialOverlay.TutorialStepType.StartBurning, true),
-            S("The arena is live now. LMB the dummy (~2.5x damage). Space to jump the gap (Pewter clears it; a normal jump falls short). Take hits while burning — half of each wound is HELD at bay, so your health barely drops. But the instant you stop pewter (B again, or it runs dry) all those held wounds hit at once — so don't burn long then drop it. Burn past ~30s then stop = DRAG CRASH (damage + exhaustion + slow). Hold R to flare (burn harder, drains faster). Press any key to finish.", TutorialOverlay.TutorialStepType.AnyKey, false),
+            S("HOW TO DEAL DAMAGE: Left Mouse (or R1 on gamepad) is your melee attack — face an enemy and click. Your hits land in a small arc in front of you. While burning Pewter, every hit lands ~2.5x harder. Try it on the orange dummy (it has lots of HP, so don't expect it to drop fast). Press any key / button to start the live arena.", TutorialOverlay.TutorialStepType.AnyKey, true),
+            FinishStep("The arena is live. Smash the dummy (LMB / R1), Space to jump the gap (Pewter clears it; a normal jump falls short). Take hits while burning — half of each wound is HELD at bay, so your health barely drops. But the instant you stop pewter (B again, or it runs dry) all those held wounds hit at once — so don't burn long then drop it. Burn past ~30s then stop = DRAG CRASH (damage + exhaustion + slow). Hold R to flare (burn harder, drains faster). Press Enter (or Dpad↓) when you're done."),
         });
         Log("Pewter test: tutorial created.");
     }
@@ -742,15 +743,15 @@ public static class RPGSceneBuilder
 
         // Step-by-step tutorial (freezes the world while teaching, advances on each action).
         BuildTutorial("Iron & Steel — Push / Pull on Metal", new TutorialOverlay.TutorialStep[] {
-            S("Iron & Steel — push/pull on METAL. The shiny metallic cubes (and the armored enemies) are anchors; a sight line shows your target. Press TAB to open the metal wheel.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Iron & Steel — push/pull on METAL. The shiny metallic cubes (and the armored enemies) are anchors; a sight line shows your target. Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Steel (slot 2) or press 2 — let's push first.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Steel),
             S("Close the wheel (Esc or click) if it's open, then press B to burn Steel.", TutorialOverlay.TutorialStepType.StartBurning, true),
             S("Aim at a metal cube (a blue line marks your target) and HOLD F to Steelpush — launch off it. The arena is live now.", TutorialOverlay.TutorialStepType.PushOrPull, false),
-            S("Nice. Now let's pull. Press TAB to switch metals.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Nice. Now let's pull. Press TAB (or Share) to switch metals.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Iron (slot 1) or press 1.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Iron),
             S("Press B to burn Iron.", TutorialOverlay.TutorialStepType.StartBurning, true),
             S("Aim at an anchor (a gold line marks your target) and HOLD Q to Ironpull — yank toward it.", TutorialOverlay.TutorialStepType.PushOrPull, false),
-            S("Heavier anchors reach farther; shoving an enemy recoils you too (mass-split); hold R to flare. Tutorial complete — explore!", TutorialOverlay.TutorialStepType.AnyKey, false),
+            FinishStep("Heavier anchors reach farther; shoving an enemy recoils you too (mass-split); hold R to flare. Tutorial complete — press Enter (or Dpad↓) when you're done exploring."),
         });
         Log("Iron/Steel test: tutorial created.");
     }
@@ -823,14 +824,14 @@ public static class RPGSceneBuilder
 
         // Step-by-step tutorial (freezes the world while teaching, advances on each action).
         BuildTutorial("Zinc & Brass — Riot / Soothe Emotions", new TutorialOverlay.TutorialStep[] {
-            S("Zinc & Brass — riot/soothe emotions. Four enemies ring you, just OUTSIDE normal detect range (they ignore you for now). Press TAB to open the metal wheel.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Zinc & Brass — riot/soothe emotions. Four enemies ring you, just OUTSIDE normal detect range (they ignore you for now). Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Brass (slot 8) or press 8 — let's soothe first.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Brass),
             S("Close the wheel if it's open, then press B to burn Brass — nearby enemies turn calm.", TutorialOverlay.TutorialStepType.StartBurning, true),
             S("While burning Brass, nearby enemies turn calm and sluggish — they won't chase. Press any key to switch to Zinc.", TutorialOverlay.TutorialStepType.AnyKey, false),
-            S("Now press TAB to open the wheel and switch metals.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Now press TAB (or Share) to open the wheel and switch metals.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Zinc (slot 7) or press 7.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Zinc),
             S("Press B to burn Zinc — nearby enemies turn hyper-aggressive and swarm!", TutorialOverlay.TutorialStepType.StartBurning, true),
-            S("Stop burning (B) to let them reset. Hold R to flare (wider aura). Press any key to finish the tutorial.", TutorialOverlay.TutorialStepType.AnyKey, false),
+            FinishStep("Stop burning (B) to let them reset. Hold R to flare (wider aura). Tutorial complete — press Enter (or Dpad↓) when you're done."),
         });
         Log("Zinc/Brass test: tutorial created.");
     }
@@ -893,15 +894,15 @@ public static class RPGSceneBuilder
 
         // Step-by-step tutorial (freezes the world while teaching, advances on each action).
         BuildTutorial("Copper & Bronze — Hide / Sense Allomancers", new TutorialOverlay.TutorialStep[] {
-            S("Copper & Bronze — hide/sense allomancers. The two dark-red Thugs are Pewter-burning enemies (faster + hit harder). The plain red Grunt is normal. Press TAB to open the metal wheel.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Copper & Bronze — hide/sense allomancers. The two dark-red Thugs are Pewter-burning enemies (faster + hit harder). The plain red Grunt is normal. Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Bronze (slot 6) or press 6 — let's sense first.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Bronze),
             S("Close the wheel if it's open, then press B to burn Bronze — hear the Thugs' allomantic pulses (directional pings + toast).", TutorialOverlay.TutorialStepType.StartBurning, true),
             S("Toasts report how many allomancers are near. Press any key to continue to Copper.", TutorialOverlay.TutorialStepType.AnyKey, false),
-            S("Now press TAB to open the wheel and switch metals.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
+            S("Now press TAB (or Share) to open the wheel and switch metals.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Copper (slot 5) or press 5.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Copper),
             S("Press B to burn Copper — emit a coppercloud that SUPPRESSES nearby Thugs.", TutorialOverlay.TutorialStepType.StartBurning, true),
             S("The arena is live. APPROACH a Thug to suppress it — it turns grey-blue, slows and hits weaker.", TutorialOverlay.TutorialStepType.SuppressThug, false),
-            S("Step away (out of the cloud) and it resumes burning + re-buffs. Hold R to flare (wider cloud/pulse). Press any key to finish.", TutorialOverlay.TutorialStepType.AnyKey, false),
+            FinishStep("Step away (out of the cloud) and it resumes burning + re-buffs. Hold R to flare (wider cloud/pulse). Tutorial complete — press Enter (or Dpad↓) when you're done."),
         });
         Log("Copper/Bronze test: tutorial created.");
     }
@@ -1256,6 +1257,10 @@ public static class RPGSceneBuilder
         SetField(enemyComp, "patrolWaypoints", wps);
 
         MakeEnemyHealthBar(enemy.transform, hp);
+
+        // Replace the blob capsule with a flat-tinted Erbium humanoid (a hostile "variant" of the
+        // player) + a locomotion Animator driven by Enemy. No-ops if the Erbium assets are absent.
+        BuildEnemyModel(enemy, enemyComp, mat != null ? mat.color : new Color(0.8f, 0.25f, 0.25f, 1f));
         return enemyComp;
     }
 
@@ -1376,12 +1381,23 @@ public static class RPGSceneBuilder
         TutorialOverlay tut = new GameObject("Tutorial").AddComponent<TutorialOverlay>();
         SetField(tut, "title", title);
         SetField(tut, "steps", steps);
+        // Dpad-Down skips the whole tutorial on a gamepad (Backspace on keyboard).
+        SetField(tut, "padSkip", KeyCode.JoystickButton13);
     }
 
     /// <summary>Concise step constructor for the tutorial scripts above.</summary>
     static TutorialOverlay.TutorialStep S(string text, TutorialOverlay.TutorialStepType type, bool freeze,
-        KeyCode key = KeyCode.None, MetalType metal = MetalType.Pewter, float wait = 0f)
-        => new TutorialOverlay.TutorialStep { text = text, type = type, freeze = freeze, key = key, metal = metal, waitSeconds = wait };
+        KeyCode key = KeyCode.None, MetalType metal = MetalType.Pewter, float wait = 0f,
+        KeyCode padKey = KeyCode.None)
+        => new TutorialOverlay.TutorialStep { text = text, type = type, freeze = freeze,
+            key = key, metal = metal, waitSeconds = wait, padKey = padKey };
+
+    /// <summary>Final "you're free to explore" step: completes on Enter (keyboard) or Dpad-Down
+    /// (gamepad) — NOT on movement keys, so the player can experiment in the live arena without
+    /// the first WASD/stick nudge instantly ending the tutorial.</summary>
+    static TutorialOverlay.TutorialStep FinishStep(string text)
+        => S(text, TutorialOverlay.TutorialStepType.PressKey, false,
+            KeyCode.Return, padKey: KeyCode.JoystickButton13);
 
     static GameObject MakeCube(string name, Vector3 pos, Vector3 scale, Material mat)
     {
@@ -1489,6 +1505,69 @@ public static class RPGSceneBuilder
 
         SetField(controller, "anim", animator);
         Log($"Erbium humanoid model + Character.controller wired (avatar={(avatar != null ? "ok" : "MISSING")}, controller={(rc != null ? "ok" : "MISSING")}). If the model walks backward, set Model.localRotation = Quaternion.Euler(0,180,0) and rebuild.");
+    }
+
+    // ── Enemy humanoid model (Erbium, flat-tinted so it reads as a hostile "variant" of the
+    // player — a humanoid silhouette, not a capsule blob) + a locomotion Animator wired into
+    // Enemy so it walks/idles/falls instead of sliding. No-ops if the Erbium assets are absent
+    // (the enemy keeps the capsule). Mirrors BuildPlayerModel but tints the model flat and aligns
+    // the feet to the CharacterController's base (spawn-height-agnostic). ─────────────────────
+    static void BuildEnemyModel(GameObject enemy, Enemy enemyComp, Color tint)
+    {
+        const string modelPath = "Assets/Art/Player/model.fbx";
+        const string controllerPath = "Assets/Animations/Humanoid/Character.controller";
+
+        GameObject modelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+        if (modelPrefab == null) return; // no Erbium asset → keep the capsule (still playable)
+
+        RuntimeAnimatorController rc = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(controllerPath);
+        Avatar avatar = null;
+        foreach (var sub in AssetDatabase.LoadAllAssetsAtPath(modelPath))
+            if (sub is Avatar av) { avatar = av; break; }
+
+        // Hide the placeholder capsule mesh — the humanoid is the visual now. Enemy still holds a
+        // ref to this (disabled) renderer for its base tint + fallback telegraph.
+        var capsuleRenderer = enemy.GetComponent<Renderer>();
+        if (capsuleRenderer != null) capsuleRenderer.enabled = false;
+
+        CharacterController cc = enemy.GetComponent<CharacterController>();
+
+        GameObject model = Object.Instantiate(modelPrefab, enemy.transform, false);
+        model.name = "Model";
+
+        // Flat URP/Lit in the enemy color. Collected so Enemy's attack telegraph can flash them.
+        Shader lit = Shader.Find("Universal Render Pipeline/Lit");
+        var tintRenderers = new System.Collections.Generic.List<Renderer>();
+        foreach (var r in model.GetComponentsInChildren<Renderer>())
+        {
+            if (lit != null)
+            {
+                Material mat = new Material(lit);
+                mat.color = tint;
+                r.sharedMaterial = mat;
+            }
+            tintRenderers.Add(r);
+        }
+
+        Animator animator = model.GetComponent<Animator>() ?? model.AddComponent<Animator>();
+        if (rc != null) animator.runtimeAnimatorController = rc;
+        if (avatar != null) animator.avatar = avatar;
+        animator.applyRootMotion = false;
+
+        // Align the model's feet to the CharacterController's base (correct for any spawn height).
+        Renderer[] rends = model.GetComponentsInChildren<Renderer>();
+        Bounds b = new Bounds(); bool init = false;
+        foreach (var r in rends)
+        {
+            if (!r.enabled) continue;
+            if (!init) { b = r.bounds; init = true; }
+            else b.Encapsulate(r.bounds);
+        }
+        if (init && cc != null)
+            model.transform.position += Vector3.up * ((enemy.transform.position.y - cc.height * 0.5f) - b.min.y);
+
+        SetField(enemyComp, "anim", animator);
+        SetField(enemyComp, "tintRenderers", tintRenderers.ToArray());
     }
 
     static void Log(string msg) => Debug.Log($"[RPGBuilder] {msg}");

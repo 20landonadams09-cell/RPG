@@ -29,6 +29,7 @@ namespace BasicRPG.Player
         private PlayerCombat combat;
         private float turnSmoothVel;
         private float verticalVel;
+        private readonly Collider[] probeBuffer = new Collider[8];
 
         // Optional humanoid locomotion animator (Erbium model + Character.controller). The builder
         // wires it when the Erbium assets are present; null falls back to the plain capsule visual.
@@ -72,6 +73,18 @@ namespace BasicRPG.Player
             combat = GetComponent<PlayerCombat>();
             if (cameraTransform == null && Camera.main != null)
                 cameraTransform = Camera.main.transform;
+        }
+
+        void Start()
+        {
+            // Snap the player onto whatever is below at spawn. The test scenes place the player a
+            // hair above a platform; during a frozen tutorial (timeScale 0) the per-frame Move is
+            // zero-length so CharacterController.isGrounded never flips true, the Animator's
+            // isFalling stays true, and the humanoid freezes in a Falling pose for the whole
+            // tutorial. Move() runs a real collision query regardless of timeScale, so one
+            // downward Move here grounds the player before the first Update/Animator tick — the
+            // model starts (and stays) in idle instead of a perpetual fall.
+            if (controller != null) controller.Move(Vector3.down * 3f);
         }
 
         void Update()
@@ -140,7 +153,31 @@ namespace BasicRPG.Player
             anim.SetFloat("verInput", v);
             anim.SetFloat("inputMagnitude", Mathf.Clamp01(new Vector3(h, 0f, v).magnitude));
             anim.SetFloat("groundVelocity", groundVel.magnitude);
-            anim.SetBool("isFalling", !controller.isGrounded);
+            // isGrounded isn't refreshed by a zero-length Move, so during a timeScale=0 freeze it
+            // can read false even when the player is plainly standing — and the Animator would then
+            // sit in the Falling pose for the whole tutorial. A short downward probe (which works
+            // regardless of timeScale) backstops it so the humanoid stays in idle while grounded.
+            anim.SetBool("isFalling", !(controller.isGrounded || GroundProbe()));
+        }
+
+        /// <summary>True if there's solid ground just under the capsule's base. Used to keep the
+        /// Animator out of the Falling pose at spawn / during a frozen tutorial when
+        /// CharacterController.isGrounded hasn't been refreshed. Ignores the player's own
+        /// colliders and triggers.</summary>
+        bool GroundProbe()
+        {
+            if (controller == null) return false;
+            Vector3 center = transform.position + Vector3.up * (-controller.height * 0.5f + 0.1f);
+            int n = Physics.OverlapSphereNonAlloc(center, 0.2f, probeBuffer);
+            for (int i = 0; i < n; i++)
+            {
+                Collider c = probeBuffer[i];
+                if (c == null || c.isTrigger) continue;
+                if (c == controller) continue;                 // own CharacterController
+                if (c.transform == transform || c.transform.IsChildOf(transform)) continue; // own model
+                return true;
+            }
+            return false;
         }
 
         float CamYaw()

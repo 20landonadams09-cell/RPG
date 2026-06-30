@@ -60,6 +60,19 @@ Press the **▶ Play** button at the top.
 | X | Drink a metal (refill reserve) |
 | F5 / F9 | Save / Load |
 
+### Tutorial (the metal test scenes)
+Each test scene opens with a step-by-step tutorial that **freezes the world** while it teaches,
+then turns the arena live for you to try things. The instruction sits in a bar at the **bottom**
+of the screen (out of the way of the action).
+
+| Key / Button | Action |
+|-----|--------|
+| Follow the on-screen prompt | Advance each step (the prompt names the exact input) |
+| Enter (keyboard) / Dpad↓ (gamepad) | Finish the final "explore freely" step |
+| Backspace (keyboard) / Dpad↓ (gamepad) | Skip the whole tutorial at any time |
+
+> Tip: the Pewter scene has a dedicated step explaining how to **deal damage** (Left Mouse / R1).
+
 ### Gamepad (DualSense / PS5)
 | Pad button | Action |
 |------------|--------|

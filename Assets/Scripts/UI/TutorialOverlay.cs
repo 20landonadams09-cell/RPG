@@ -35,6 +35,8 @@ namespace BasicRPG.UI
             public TutorialStepType type = TutorialStepType.AnyKey;
             [Tooltip("Key the player must press (PressKey type).")]
             public KeyCode key = KeyCode.None;
+            [Tooltip("Gamepad button that also completes this step (PressKey type), so the tutorial advances on a controller too. None = keyboard only.")]
+            public KeyCode padKey = KeyCode.None;
             [Tooltip("Metal the player must select (SelectMetal type).")]
             public MetalType metal = MetalType.Pewter;
             [Tooltip("If true, freeze the world (timeScale 0) for this step; if false, release it so the player can move/act.")]
@@ -64,6 +66,8 @@ namespace BasicRPG.UI
         public float overloadThreshold = 0.10f;
         [Tooltip("Press this to skip the whole tutorial at any time.")]
         public KeyCode skipKey = KeyCode.Backspace;
+        [Tooltip("Gamepad button that also skips the whole tutorial. None = no gamepad skip.")]
+        public KeyCode padSkip = KeyCode.None;
 
         private Canvas canvas;
         private CanvasGroup group;
@@ -114,17 +118,19 @@ namespace BasicRPG.UI
             group.blocksRaycasts = false;
             group.interactable = false;
 
-            // Panel near the top so it doesn't clash with the centered wheel.
+            // A contextual text box pinned to the BOTTOM of the screen (like the tutorial/hint bar
+            // in most games) so it stays out of the middle and doesn't cover the action it's
+            // teaching. Wide enough for a wrapped instruction, slim enough not to dominate.
             GameObject panel = new GameObject("Panel");
             panel.transform.SetParent(canvasObj.transform, false);
             RectTransform prt = panel.AddComponent<RectTransform>();
-            prt.anchorMin = new Vector2(0.5f, 1f);
-            prt.anchorMax = new Vector2(0.5f, 1f);
-            prt.pivot = new Vector2(0.5f, 1f);
-            prt.sizeDelta = new Vector2(720f, 150f);
-            prt.anchoredPosition = new Vector2(0f, -96f);
+            prt.anchorMin = new Vector2(0.5f, 0f);
+            prt.anchorMax = new Vector2(0.5f, 0f);
+            prt.pivot = new Vector2(0.5f, 0f);
+            prt.sizeDelta = new Vector2(760f, 140f);
+            prt.anchoredPosition = new Vector2(0f, 36f);
             Image bg = panel.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.06f, 0.09f, 0.86f);
+            bg.color = new Color(0.05f, 0.06f, 0.09f, 0.88f);
             bg.raycastTarget = false;
 
             // Title (top-left of panel).
@@ -167,7 +173,9 @@ namespace BasicRPG.UI
                 new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f),
                 new Vector2(-20f, 10f), new Vector2(200f, 20f), 13, TextAnchor.LowerRight);
             skipHint.color = new Color(0.6f, 0.62f, 0.68f, 0.85f);
-            skipHint.text = "Backspace: skip tutorial";
+            skipHint.text = padSkip != KeyCode.None
+                ? $"{PrettyKey(skipKey)} / {PrettyKey(padSkip)}: skip tutorial"
+                : $"{PrettyKey(skipKey)}: skip tutorial";
         }
 
         void Update()
@@ -201,7 +209,8 @@ namespace BasicRPG.UI
             stepAge += Time.unscaledDeltaTime;
 
             // Skip the whole tutorial.
-            if (stepAge >= stepGrace && Input.GetKeyDown(skipKey))
+            if (stepAge >= stepGrace && (Input.GetKeyDown(skipKey) ||
+                (padSkip != KeyCode.None && Input.GetKeyDown(padSkip))))
             {
                 Finish();
                 return;
@@ -214,14 +223,28 @@ namespace BasicRPG.UI
                 Advance();
         }
 
+        void LateUpdate()
+        {
+            // The MetalWheel restores Time.timeScale to 1 in its own Update when it closes; if that
+            // runs after this overlay's Update in the same frame, the world is live for one frame
+            // during a frozen step (enemies twitch, the player drops a hair). Re-asserting the
+            // freeze in LateUpdate — which runs after every Update — closes that one-frame gap so a
+            // frozen step actually freezes the background completely.
+            if (finished) return;
+            if (currentIndex < 0 || currentIndex >= steps.Length) return;
+            TutorialStep step = steps[currentIndex];
+            Time.timeScale = (MetalWheel.IsOpen || step.freeze) ? 0f : originalTimeScale;
+        }
+
         bool IsStepComplete(TutorialStep step)
         {
             switch (step.type)
             {
                 case TutorialStepType.AnyKey:
-                    return Input.anyKeyDown || Input.GetMouseButtonDown(0);
+                    return Input.anyKeyDown || Input.GetMouseButtonDown(0) || AnyGamepadButtonDown();
                 case TutorialStepType.PressKey:
-                    return Input.GetKeyDown(step.key);
+                    return Input.GetKeyDown(step.key) ||
+                        (step.padKey != KeyCode.None && Input.GetKeyDown(step.padKey));
                 case TutorialStepType.OpenWheel:
                     return MetalWheel.IsOpen;
                 case TutorialStepType.SelectMetal:
@@ -260,11 +283,13 @@ namespace BasicRPG.UI
         {
             switch (step.type)
             {
-                case TutorialStepType.AnyKey:      return "Press any key to continue  ▸";
-                case TutorialStepType.PressKey:     return $"Press {PrettyKey(step.key)}  ▸";
-                case TutorialStepType.OpenWheel:    return "Open the wheel (Tab)  ▸";
+                case TutorialStepType.AnyKey:      return "Press any key / button to continue  ▸";
+                case TutorialStepType.PressKey:     return step.padKey != KeyCode.None
+                        ? $"Press {PrettyKey(step.key)} (or {PrettyKey(step.padKey)})  ▸"
+                        : $"Press {PrettyKey(step.key)}  ▸";
+                case TutorialStepType.OpenWheel:    return "Open the wheel (Tab / Share)  ▸";
                 case TutorialStepType.SelectMetal:  return "Click the metal in the wheel  ▸";
-                case TutorialStepType.StartBurning: return "Press B to burn  ▸";
+                case TutorialStepType.StartBurning: return "Press B (or △) to burn  ▸";
                 case TutorialStepType.PushOrPull:   return "Hold F (push) or Q (pull)  ▸";
                 case TutorialStepType.FeelOverload: return "Walk into the bright light  ▸";
                 case TutorialStepType.SuppressThug: return "Approach a Thug (Copper burning)  ▸";
@@ -273,7 +298,44 @@ namespace BasicRPG.UI
             }
         }
 
-        static string PrettyKey(KeyCode k) => k == KeyCode.None ? "a key" : k.ToString();
+        static string PrettyKey(KeyCode k)
+        {
+            if (k == KeyCode.None) return "a key";
+            // Friendly names for the DualSense buttons this project maps in Keybinds.
+            switch (k)
+            {
+                case KeyCode.JoystickButton0: return "✕";
+                case KeyCode.JoystickButton1: return "○";
+                case KeyCode.JoystickButton2: return "□";
+                case KeyCode.JoystickButton3: return "△";
+                case KeyCode.JoystickButton4: return "L1";
+                case KeyCode.JoystickButton5: return "R1";
+                case KeyCode.JoystickButton6: return "L2";
+                case KeyCode.JoystickButton7: return "R2";
+                case KeyCode.JoystickButton8: return "Share";
+                case KeyCode.JoystickButton9: return "Options";
+                case KeyCode.JoystickButton10: return "L3";
+                case KeyCode.JoystickButton11: return "R3";
+                case KeyCode.JoystickButton12: return "Dpad↑";
+                case KeyCode.JoystickButton13: return "Dpad↓";
+                case KeyCode.JoystickButton14: return "Dpad←";
+                case KeyCode.JoystickButton15: return "Dpad→";
+            }
+            return k.ToString();
+        }
+
+        /// <summary>True if any common gamepad face/shoulder/dpad button went down this frame.
+        /// Input.anyKeyDown doesn't reliably include joystick buttons, so without this the AnyKey
+        /// steps (and the skip) can't advance on a controller — the counter would stick and read as
+        /// "always wrong". Covers the DualSense button range this project maps in Keybinds.</summary>
+        static bool AnyGamepadButtonDown()
+        {
+            if (Input.GetJoystickNames().Length == 0) return false;
+            for (int b = 0; b <= 15; b++)
+                if (Input.GetKeyDown((KeyCode)(330 + b))) // JoystickButton0..15
+                    return true;
+            return false;
+        }
 
         void Advance()
         {
