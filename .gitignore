@@ -1,0 +1,38 @@
+# ── Unity-generated (never commit; regenerated locally) ──────────────────────
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+# Unity crash / crash reports
+sysinfo.txt
+mono_crash.*.json
+
+# ── IDE / editor ─────────────────────────────────────────────────────────────
+.vs/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.opendb
+*.VC.db
+*.tmp
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Dropped-in foreign archives / dead code (not part of BasicRPG) ─────────────
+# These sit in the project root but are NOT under Assets/, so Unity doesn't
+# compile/use them. Excluded from version control to keep the repo clean.
+/Erbium-master.zip
+/unity-rpg-master.zip
+/MistbornAllomancyKernel.cs
