@@ -29,6 +29,24 @@ namespace BasicRPG.Allomancy
     ///   push off fixed metal at an angle to bound in a direction. (Throwing coins to push off —
     ///   the Mistborn's portable anchors — is canon but not implemented yet.)
     ///
+    /// Canon mechanics this model already honours (confirmed via r/Cosmere lore discussion):
+    /// • Momentum is conserved — the push/pull ADDS force to the Mistborn's existing velocity, it
+    ///   doesn't replace it. Run sideways and push down on an anchor below you and you pole-vault
+    ///   (the piston/rod extends while you carry your sideways momentum) — arcing, Spider-Man-ish
+    ///   swings emerge from horizontal momentum + a toward/away force. (AddAllomanticVelocity adds
+    ///   to the allomantic vector; the player's velocity = input + gravity + allomantic, summed.)
+    /// • Pushing does NOT cancel gravity — gravity always applies (verticalVel), so a horizontal
+    ///   push down a hallway would drop you unless the anchor is slightly BELOW your centre (so the
+    ///   recoil has an upward component that counters gravity), or you use multiple anchors / jump.
+    ///   This falls out for free: recoil = -(chest→anchor), so a below-centre anchor pushes you up.
+    /// • Hovering at a steady height is HARD and rare in canon (Zane needed a spike; Wax is near a
+    ///   savant) — a normal Misting pushes in BURSTS and launches/arcs, they don't hang. The game's
+    ///   binary hold can't fine-tune force, so it reproduces this: holding push on a ground anchor
+    ///   LAUNCHES you (you arc back down), it doesn't let you sit at a fixed height. Continuous
+    ///   constant-force push (a gameplay simplification vs the lore's "bursts are normal") is
+    ///   enabled; the one concession is a mild drag so an impulse bleeds off instead of carrying
+    ///   you forever (tuning, not canon).
+    ///
     /// Force model (Ashwalker PHYSICS-MATH-BOOK):
     ///   origin    = the Mistborn's chest bone — live, follows the model's animation (the body is
     ///               the source of the force). Falls back to root + chestOffset if no Animator.
