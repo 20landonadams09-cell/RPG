@@ -58,10 +58,16 @@ namespace BasicRPG.Allomancy
     ///               anchorBonus = Clamp(Log10(max(1, mass)), 0, 1) — heavier anchors reach farther.
     ///               A sub-precision guard (ForceEpsilon) treats a below-epsilon force as exactly
     ///               zero — silent jitter, not corruption, is the real danger in this system.
-    ///   anchored (static metal: walls/cubes) → full recoil/pull, capped at maxRecoilSpeed /
-    ///               maxPullSpeed. The anchor doesn't move; you launch off it.
-    ///   loose (armored enemy) → mass-split impulse: the enemy is shoved one way and you recoil
-    ///               the other, each velocity capped — Newton's third law for two movable bodies.
+    ///   anchored (nailed/immovable metal: walls, bolted cubes — MetalAnchor.anchored==true) →
+    ///               full recoil/pull, capped at maxRecoilSpeed / maxPullSpeed. The anchor doesn't
+    ///               move; you launch off it.
+    ///   loose (movable) → mass-split impulse — Newton's third law for two movable bodies. Two
+    ///               flavours: an armored enemy (shoved via its CharacterController) and a free
+    ///               metal body (MetalAnchor.anchored==false, a Rigidbody — coins/crates/blocks,
+    ///               shoved directly). The same impulse goes to both bodies, so the lighter one
+    ///               moves more: a light coin flies off (you barely move), a heavy block barely
+    ///               budges (you get the recoil instead). Equal momentum (m_obj*v_obj ==
+    ///               m_player*v_player) — the velocity ratio is the inverse of the mass ratio.
     ///   frameScale = dt / cooldown spreads the impulse smoothly across frames (no pulsed
     ///               saw-tooth) while preserving the same net impulse/second as the old per-cooldown
     ///               system. Direction is recomputed each frame so diagonal/arced pushes produce
@@ -117,10 +123,12 @@ namespace BasicRPG.Allomancy
         public float maxPullSpeed = 18f;
         public float loosePullForce = 30f;
 
-        [Header("Loose-anchor mass split (armored enemies)")]
+        [Header("Loose-anchor mass split (armored enemies + free metal bodies)")]
         [Tooltip("Mass used for the two-body recoil/shove split when pushing/pulling an enemy.")]
         public float playerMass = 1f;
         public float enemyMass = 1f;
+        [Tooltip("Cap on a loose free-metal body's shove velocity (so a coin doesn't reach lightspeed).")]
+        public float looseObjectMaxSpeed = 25f;
 
         [Header("Drain while actively pushing/pulling (extra, on top of passive burn)")]
         public float activeDrainPerSecond = 5f;
@@ -153,6 +161,8 @@ namespace BasicRPG.Allomancy
 
         private MetalAnchor currentTarget;
         private Enemy currentTargetEnemy;   // non-null when the target is a movable enemy (loose)
+        private Rigidbody looseBody;        // non-null when the target is a free movable metal body (loose)
+        private float currentTargetMass;    // mass used for the range bonus + the two-body split
         private Transform chestBone;        // resolved lazily from the Animator (cached once found)
 
         // Sight-line pool (one LineRenderer per anchor in range), under a child parent.
@@ -421,6 +431,18 @@ namespace BasicRPG.Allomancy
             currentTarget = primary;
             currentTargetEnemy = primary.GetComponentInParent<Enemy>();
 
+            // LOOSE = movable. Two flavours of movable anchor, both handled as a Newton's-3rd-law
+            // mass-split: (a) an armored enemy (CharacterController, shoved via Enemy.AddPush);
+            // (b) a non-enemy MetalAnchor flagged !anchored — a free Rigidbody body (coin/crate/
+            // block) shoved directly through its Rigidbody. ANCHORED (anchored==true, no enemy,
+            // no loose body) is "nailed to the ground": it never moves, the full push/pull
+            // reaction launches the Mistborn.
+            looseBody = (currentTargetEnemy == null && !primary.anchored)
+                ? primary.GetComponentInParent<Rigidbody>() : null;
+            // Mass for the range bonus (heavier metal pushes from farther — canon) AND the split.
+            currentTargetMass = currentTargetEnemy != null ? enemyMass
+                : (looseBody != null ? Mathf.Max(primary.mass, 0.05f) : 10f);
+
             Vector3 targetCoM = primary.transform.position;
             Vector3 toTarget = targetCoM - origin;
             float distance = toTarget.magnitude;
@@ -431,14 +453,14 @@ namespace BasicRPG.Allomancy
             // anchors reach farther). Single ownership: this is the only place spatial falloff is
             // computed — never duplicate it elsewhere (a prior bug came from leaking it into a
             // second layer and double-counting the falloff).
-            float anchorBonus = Mathf.Clamp(Mathf.Log10(Mathf.Max(1f, TargetMass())), 0f, 1f);
+            float anchorBonus = Mathf.Clamp(Mathf.Log10(Mathf.Max(1f, currentTargetMass)), 0f, 1f);
             float effectiveRange = maxRange * (1f + anchorBonus * 0.5f);
             float distMult = inverseDistanceScaling ? DistanceAttenuation(distance, plateauRange, effectiveRange) : 1f;
             // Sub-precision guard: a force below epsilon is treated as exactly zero — not as a
             // tiny nonzero jitter the solver may overreact to. Silent instability is the real
             // danger here, not NaN/Infinity.
             if (distMult <= ForceEpsilon) return;
-            bool loose = currentTargetEnemy != null;
+            bool loose = currentTargetEnemy != null || looseBody != null;
 
             // Secondary anchors shape DIRECTION only (never force magnitude) — "metal field
             // awareness": the push/pull vector bends slightly toward other in-range anchors,
@@ -464,15 +486,18 @@ namespace BasicRPG.Allomancy
             if (wantPush)
             {
                 // Push = recoil away from the anchor (-forceDir). The sign flip lives here at the
-                // application boundary, never in the attenuation math.
-                // Anchored (static metal): full recoil, capped. Loose (enemy): mass-split shove.
+                // application boundary, never in the attenuation math. Three cases:
+                //  • Anchored (nailed): full recoil, the metal never moves — you launch off it.
+                //  • Loose enemy: mass-split shove via the enemy's CharacterController.
+                //  • Loose free body (Rigidbody): same mass-split, the body is shoved directly.
+                // Holding F keeps burning — the impulse applies every held frame (continuous).
                 float frameScale = Time.deltaTime / pushCooldown;
                 if (!loose)
                 {
                     float recoilMag = Mathf.Min(pushSpeed * flare * distMult, maxRecoilSpeed * flare);
                     mover.AddAllomanticVelocity(-forceDir * recoilMag * frameScale);
                 }
-                else
+                else if (currentTargetEnemy != null)
                 {
                     float total = playerMass + enemyMass;
                     float pushMag = loosePushForce * flare * distMult;
@@ -481,18 +506,37 @@ namespace BasicRPG.Allomancy
                     currentTargetEnemy.AddPush(forceDir * targetV * frameScale);
                     mover.AddAllomanticVelocity(-forceDir * playerV * frameScale);
                 }
+                else // loose free metal body (Rigidbody) — Newton's 3rd, mass-split
+                {
+                    // Equal-and-opposite momentum: the impulse is shared so the lighter body takes
+                    // more velocity (m_obj*v_obj == m_player*v_player). A light coin flies off and
+                    // you barely move; a heavy block barely budges and you get the recoil. Push:
+                    // object +forceDir (away), player -forceDir. The object's share velocity ramps
+                    // it along the push direction (preserving any sideways/fall motion) and caps at
+                    // looseObjectMaxSpeed; as it flies off, distance grows, distMult falls, and the
+                    // push tapers to a stop on its own.
+                    float mObj = Mathf.Max(primary.mass, 0.05f);
+                    float total = playerMass + mObj;
+                    float pushMag = loosePushForce * flare * distMult;
+                    float objV = Mathf.Min(pushMag * (playerMass / total), looseObjectMaxSpeed);
+                    float playerV = Mathf.Min(pushMag * (mObj / total), maxRecoilSpeed);
+                    ShoveRigidbody(looseBody, forceDir, objV, frameScale);
+                    mover.AddAllomanticVelocity(-forceDir * playerV * frameScale);
+                }
                 allomancer.DrainMetal(MetalType.Steel, activeDrainPerSecond * flare * Time.deltaTime);
                 if (Time.deltaTime > 0f) didActFlag = true; // only count a real (non-frozen) impulse
             }
             else // wantPull — yank toward the anchor (+forceDir)
             {
+                // Pull = toward the anchor (+forceDir for the Mistborn; the object comes -forceDir,
+                // i.e. toward you). Same three-case split as Push, mirrored. Holding Q keeps burning.
                 float frameScale = Time.deltaTime / pullCooldown;
                 if (!loose)
                 {
                     float speed = Mathf.Min(pullSpeed * flare * distMult, maxPullSpeed * flare);
                     mover.AddAllomanticVelocity(forceDir * speed * frameScale);
                 }
-                else
+                else if (currentTargetEnemy != null)
                 {
                     float total = playerMass + enemyMass;
                     float pullMag = loosePullForce * flare * distMult;
@@ -501,9 +545,38 @@ namespace BasicRPG.Allomancy
                     mover.AddAllomanticVelocity(forceDir * playerV * frameScale);
                     currentTargetEnemy.AddPush(-forceDir * objectV * frameScale);
                 }
+                else // loose free metal body (Rigidbody) — Newton's 3rd, mass-split
+                {
+                    // Equal-and-opposite momentum (m_obj*v_obj == m_player*v_player): the lighter
+                    // body is yanked more. Pull: object -forceDir (toward you), player +forceDir
+                    // (toward the anchor). The object's share velocity ramps it along the pull
+                    // direction (toward you), preserving sideways/fall motion, capped.
+                    float mObj = Mathf.Max(primary.mass, 0.05f);
+                    float total = playerMass + mObj;
+                    float pullMag = loosePullForce * flare * distMult;
+                    float objV = Mathf.Min(pullMag * (playerMass / total), looseObjectMaxSpeed);
+                    float playerV = Mathf.Min(pullMag * (mObj / total), maxPullSpeed);
+                    ShoveRigidbody(looseBody, -forceDir, objV, frameScale);
+                    mover.AddAllomanticVelocity(forceDir * playerV * frameScale);
+                }
                 allomancer.DrainMetal(MetalType.Iron, activeDrainPerSecond * flare * Time.deltaTime);
                 if (Time.deltaTime > 0f) didActFlag = true; // only count a real (non-frozen) impulse
             }
+        }
+
+        /// <summary>Shove a loose free-metal Rigidbody along <paramref name="shoveDir"/> up to its
+        /// mass-split share velocity <paramref name="shareV"/> (Newton's 3rd — the lighter body's
+        /// bigger share). Only the along-<paramref name="shoveDir"/> velocity component is driven
+        /// (ramped toward <paramref name="shareV"/> at <paramref name="shareV"/>*<paramref name="frameScale"/>
+        /// per frame, capped), so any perpendicular motion (gravity fall, a previous sideways shove)
+        /// is preserved, never cancelled. Wakes a sleeping body so it reacts immediately.</summary>
+        static void ShoveRigidbody(Rigidbody rb, Vector3 shoveDir, float shareV, float frameScale)
+        {
+            if (rb == null || rb.isKinematic) return;
+            float along = Vector3.Dot(rb.velocity, shoveDir);
+            float newAlong = Mathf.Min(along + shareV * frameScale, shareV); // ramp toward shareV, capped
+            rb.velocity += shoveDir * (newAlong - along);
+            rb.WakeUp();
         }
 
         /// <summary>Plateau + smoothstep-tail distance attenuation — the single owner of spatial
@@ -520,9 +593,9 @@ namespace BasicRPG.Allomancy
             return 1f - smooth; // 1 at plateau edge, 0 at effectiveRange
         }
 
-        // Static anchors are treated as heavy (so their range bonus is meaningful and they don't
-        // move). Enemy anchors use enemyMass for the loose two-body split.
-        float TargetMass() => currentTargetEnemy != null ? enemyMass : 10f;
+        // Static anchors are treated as heavy (mass 10 — so their range bonus is meaningful and
+        // they read as immovable). Enemy anchors use enemyMass; free loose bodies use their own
+        // MetalAnchor.mass — both set into currentTargetMass at the top of ApplyForce.
 
         void OnDestroy()
         {

@@ -732,6 +732,15 @@ public static class RPGSceneBuilder
         MakeCube("FarPlatform", new Vector3(16f, 0.5f, 0f), new Vector3(4f, 1f, 4f), wallMat);
         MakeAnchor("Anchor_Far", new Vector3(16f, 1.2f, 0f), new Vector3(1f, 1f, 1f), anchorMat);
 
+        // LOOSE metal — free, movable bodies (copper so they read distinct from the nailed grey
+        // anchors). Newton's-third-law demonstration: pushing/pulling these is a mass-split, so
+        // the lighter body moves more. A small coin flies off and barely moves you; a heavy block
+        // barely budges and shoves YOU back. pos.y = scale.y/2 so each rests on the ground.
+        Material looseMat = CreateMetalMaterial("LooseMetalMat", new Color(0.86f, 0.55f, 0.34f, 1f));
+        MakeLooseAnchor("LooseCoin",  new Vector3( 2.5f, 0.20f, 6f), new Vector3(0.40f, 0.40f, 0.40f), looseMat, 0.20f); // light → flies off
+        MakeLooseAnchor("LooseCrate", new Vector3(-2.5f, 0.40f, 6f), new Vector3(0.80f, 0.80f, 0.80f), looseMat, 1.00f); // equal to you → both move
+        MakeLooseAnchor("LooseBlock", new Vector3( 0.0f, 0.75f, 9f), new Vector3(1.50f, 1.50f, 1.50f), looseMat, 20.0f); // heavy → you move, it creeps
+
         // Wandering enemies (already carry MetalAnchor via CreateEnemy → Steelpush shoves them).
         CreateEnemy("ISEnemy_A", new Vector3(3f, 1f, 3f),
             new Vector3[] { new Vector3(3f, 0f, 3f), new Vector3(-3f, 0f, 3f), new Vector3(0f, 0f, 7f) },
@@ -739,19 +748,20 @@ public static class RPGSceneBuilder
         CreateEnemy("ISEnemy_B", new Vector3(-4f, 1f, -2f),
             new Vector3[] { new Vector3(-4f, 0f, -2f), new Vector3(4f, 0f, -2f) },
             enemyMat, null, 0);
-        Log("Iron/Steel test: anchors + wall + raised/far anchors + 2 enemies created.");
+        Log("Iron/Steel test: anchored cubes + wall + raised/far anchors + 3 loose metal bodies + 2 enemies created.");
 
         // Step-by-step tutorial (freezes the world while teaching, advances on each action).
         BuildTutorial("Iron & Steel — Push / Pull on Metal", new TutorialOverlay.TutorialStep[] {
             S("Iron & Steel — push/pull on METAL. The shiny metallic cubes (and the armored enemies) are anchors; a sight line shows your target. Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Steel (slot 2) or press 2 — let's push first.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Steel),
             S("Close the wheel (Esc or click) if it's open, then press B to burn Steel.", TutorialOverlay.TutorialStepType.StartBurning, true),
-            S("Aim at a metal cube (a blue line marks your target) and HOLD F to Steelpush — launch off it. The arena is live now.", TutorialOverlay.TutorialStepType.PushOrPull, false),
+            S("Aim at a NAILED grey cube (a blue line marks your target) and HOLD F to Steelpush — it won't move; YOU launch off it (full recoil). The arena is live now.", TutorialOverlay.TutorialStepType.PushOrPull, false),
+            S("Now push a COPPER cube — those are LOOSE (not nailed). The small coin flies off and barely moves you; the big heavy block barely budges and shoves YOU back. Same force, lighter body moves more — Newton's third law.", TutorialOverlay.TutorialStepType.PushOrPull, false),
             S("Nice. Now let's pull. Press TAB (or Share) to switch metals.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Iron (slot 1) or press 1.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Iron),
             S("Press B to burn Iron.", TutorialOverlay.TutorialStepType.StartBurning, true),
-            S("Aim at an anchor (a gold line marks your target) and HOLD Q to Ironpull — yank toward it.", TutorialOverlay.TutorialStepType.PushOrPull, false),
-            FinishStep("Heavier anchors reach farther; shoving an enemy recoils you too (mass-split); hold R to flare. Tutorial complete — press Enter (or Dpad↓) when you're done exploring."),
+            S("Aim at an anchor (a gold line marks your target) and HOLD Q to Ironpull — yank toward it (or yank a loose coin back to you).", TutorialOverlay.TutorialStepType.PushOrPull, false),
+            FinishStep("Heavier anchors reach farther; loose metal is a mass-split (lighter body moves more); shoving an enemy recoils you too; hold R to flare. Tutorial complete — press Enter (or Dpad↓) when you're done exploring."),
         });
         Log("Iron/Steel test: tutorial created.");
     }
@@ -760,7 +770,27 @@ public static class RPGSceneBuilder
     static GameObject MakeAnchor(string name, Vector3 pos, Vector3 scale, Material mat)
     {
         GameObject cube = MakeCube(name, pos, scale, mat);
-        cube.AddComponent<MetalAnchor>();
+        MetalAnchor a = cube.AddComponent<MetalAnchor>();
+        a.anchored = true;   // explicit: nailed in place — pushing it launches the player, it never moves
+        return cube;
+    }
+
+    /// <summary>A LOOSE metal anchor — a free, movable body (a coin / crate / block) on a
+    /// Rigidbody. Iron/Steel pushes/pulls it as a Newton's-3rd-law mass-split: the lighter body
+    /// moves more. `pos.y` should be `scale.y/2` so the cube rests on the ground. Rotation is
+    /// frozen so it slides cleanly when shoved (a readable demonstration, not a tumbling mess).
+    /// Contrast with <see cref="MakeAnchor"/> (anchored — never moves, full recoil to the player).</summary>
+    static GameObject MakeLooseAnchor(string name, Vector3 pos, Vector3 scale, Material mat, float mass)
+    {
+        GameObject cube = MakeCube(name, pos, scale, mat);  // MakeCube's primitive already gives a BoxCollider
+        Rigidbody rb = cube.AddComponent<Rigidbody>();
+        rb.mass = mass;
+        rb.constraints = RigidbodyConstraints.FreezeRotation;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        MetalAnchor a = cube.AddComponent<MetalAnchor>();
+        a.mass = mass;
+        a.anchored = false;  // loose: pushed/pulled as a mass-split, it physically moves
         return cube;
     }
 
