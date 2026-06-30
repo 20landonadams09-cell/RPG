@@ -59,7 +59,7 @@ steps hold the world paused (`timeScale 0`); action steps release it so you can 
   bright-light hazard. Tests Tin night vision, scent pings, vibration, and sensory overload.
 - **RPG → Build Pewter Test Scene** → `Assets/Scenes/PewterTest.unity` — a stationary high-HP
   damage dummy, a platform gap clearable only with Pewter's jump, and attacking enemies.
-  Tests Pewter's ~2× melee strength, damage reduction, and the drag crash.
+  Tests Pewter's ~2.5× melee strength, held-wounds survivability, the gap-jump, and the drag crash.
 - **RPG → Build Iron/Steel Test Scene** → `Assets/Scenes/IronSteelTest.unity` — scattered metal
   anchor cubes, a wall to push off, a raised and a far anchor to pull toward, and enemies to
   shove. Tests Steelpush (F) and Ironpull (Q).
@@ -258,18 +258,28 @@ the state is readable at a glance.
 
 Select Pewter (Tab → click Pewter, or **3**) and press **B**:
 
-- **Strength** — melee hits deal ~2× damage.
+- **Strength** — melee hits deal ~2.5× damage.
 - **Speed / Jump** — move faster and jump higher (clear gaps you can't normally).
-- **Durability** — incoming hits deal ~35% less damage; a faint red vignette edges the screen.
-- **Mend** — slowly heals you while burning.
+- **Toughness** — incoming hits deal ~20% less; a faint red vignette edges the screen.
+- **Mend** — slowly heals you while burning (knits minor wounds faster).
+- **Held wounds (lore)** — while Pewter burns, **half of each wound is held at bay**, not
+  applied. So your health barely moves during a fight — the wounds were always real, Pewter
+  just hid them. The instant Pewter stops (toggle B off, let the reserve run dry, or drag-crash),
+  all that held shock lands as **one hit**. Dropping Pewter after a bad fight can drop you —
+  that's the lore. Keep Pewter up while you're hurt.
 - **Endurance** — sprinting drains **no stamina** while Pewter burns (the fatigue is *banked*).
   When you stop burning, that banked fatigue hits all at once *with interest* — burn briefly,
   pay a little; burn long, pay a lot.
 - **Drag Crash** — burn Pewter for ~30+ seconds continuously, then stop (or let it run dry):
-  a **drag crash** — you take damage, your stamina drops to zero / exhausted, and you're
-  slowed for a few seconds ("Pewter drag crash!" toast). Short burns don't crash.
+  a **drag crash** — the held wounds hit, you take crash damage, your stamina drops to zero /
+  exhausted, and you're slowed for a few seconds ("Pewter drag crash!" toast). Short burns
+  don't crash.
+- **Flare** — hold **R** while burning to burn harder (bigger strength/speed/jump, faster
+  mend) at the cost of draining the reserve faster.
 
-Test it in the **Pewter Test Scene** (dummy, gap, attackers).
+Test it in the **Pewter Test Scene** (dummy, gap, attackers): hit the dummy, jump the gap,
+take hits while burning (watch your health hold), then stop Pewter and feel the held wounds
+land.
 
 ### Tin (Tineye) — enhanced senses
 

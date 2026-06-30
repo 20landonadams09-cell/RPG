@@ -143,7 +143,7 @@ public static class RPGSceneBuilder
         }
         bool addedX = EnsureJoyAxis(axes, "RightStickX", axisIndex: 2, invert: false);
         bool addedY = EnsureJoyAxis(axes, "RightStickY", axisIndex: 3, invert: true);
-        so.ApplyModifiedPropertiesWithoutBroadcast();
+        so.ApplyModifiedProperties();
         if (addedX || addedY)
         {
             EditorUtility.SetDirty(assets[0]);
@@ -563,7 +563,7 @@ public static class RPGSceneBuilder
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Log("Pewter test scene complete. Controls: WASD/Space/mouse, Tab wheel, B burn, LMB attack. Tab → Pewter → B: hit the dummy, jump the gap, take a hit, burn past 30s for a drag crash.");
+        Log("Pewter test scene complete. Controls: WASD/Space/mouse, Tab wheel, B burn, LMB attack. Tab → Pewter → B: ~2.5x melee, jump the gap, shrug off hits (half held at bay — they hit when you STOP pewter), burn past ~30s then stop = drag crash, hold R to flare.");
     }
 
     /// <summary>Tin test scene: pitch-black-ish arena with alcoves (enemies behind walls),
@@ -665,7 +665,7 @@ public static class RPGSceneBuilder
             S("Pewter — physical enhancement. Press TAB to open the metal wheel.", TutorialOverlay.TutorialStepType.PressKey, true, key: Keybinds.MetalWheel),
             S("Click Pewter (slot 3) or press 3 to make it the active metal.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Pewter),
             S("Close the wheel (Esc or click) if it's open, then press B to burn Pewter — you're stronger, faster, tougher.", TutorialOverlay.TutorialStepType.StartBurning, true),
-            S("The arena is live now. LMB the dummy (~2× damage), Space to jump the gap (Pewter clears it), take a hit (~35% less). Burn >~30s then stop = drag crash. Hold R to flare. Press any key to finish.", TutorialOverlay.TutorialStepType.AnyKey, false),
+            S("The arena is live now. LMB the dummy (~2.5x damage). Space to jump the gap (Pewter clears it; a normal jump falls short). Take hits while burning — half of each wound is HELD at bay, so your health barely drops. But the instant you stop pewter (B again, or it runs dry) all those held wounds hit at once — so don't burn long then drop it. Burn past ~30s then stop = DRAG CRASH (damage + exhaustion + slow). Hold R to flare (burn harder, drains faster). Press any key to finish.", TutorialOverlay.TutorialStepType.AnyKey, false),
         });
         Log("Pewter test: tutorial created.");
     }

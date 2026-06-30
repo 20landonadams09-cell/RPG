@@ -44,12 +44,17 @@ namespace BasicRPG.Combat
         private bool isBlocking;
         private bool isDodging;
 
-        // Pewter writes these while burning: outgoing damage strength, incoming damage reduction.
+        // Pewter writes these while burning: outgoing damage strength, incoming damage reduction,
+        // and a "held wounds" deferral — while pewter burns, a fraction of each hit is banked
+        // instead of applied, then released as one hit when pewter stops (the shock catches up).
         private float strengthMultiplier = 1f;
         private float incomingDamageMultiplier = 1f;
+        private float pewterDeferredFraction;   // 0 = none; set by Pewter while burning
+        private float pewterDeferredBank;       // HP currently held at bay by pewter
 
         public void SetPewterStrength(float m) => strengthMultiplier = m;
         public void SetDamageReduction(float takeFraction) => incomingDamageMultiplier = takeFraction;
+        public void SetPewterDeferFraction(float f) => pewterDeferredFraction = Mathf.Clamp01(f);
 
         public bool IsDodging => isDodging;
         public bool IsBlocking => isBlocking;
@@ -159,7 +164,31 @@ namespace BasicRPG.Combat
             if (isBlocking) amount = Mathf.RoundToInt(amount * (1f - blockReduction));
             // Pewter toughness stacks with block: take a fraction of whatever remains.
             amount = Mathf.RoundToInt(amount * incomingDamageMultiplier);
-            if (health != null) health.TakeDamage(amount);
+            // "Pewter holds your wounds at bay": while burning, a fraction of the hit is deferred
+            // (banked) rather than applied now. The banked shock is released as one hit when
+            // pewter stops (ReleasePewterDeferredWounds) — the lore-accurate "shock catches up."
+            if (pewterDeferredFraction > 0f && amount > 0)
+            {
+                int deferred = Mathf.RoundToInt(amount * pewterDeferredFraction);
+                if (deferred > 0)
+                {
+                    pewterDeferredBank += deferred;
+                    amount = Mathf.Max(0, amount - deferred);
+                }
+            }
+            if (health != null && amount > 0) health.TakeDamage(amount);
+        }
+
+        /// <summary>Pewter stopped (toggled off / ran dry / drag-crashed / destroyed): release all
+        /// the damage it was holding at bay as a single hit. These wounds were already incurred
+        /// (Pewter just hid them), so the release ignores active dodge i-frames — there's no
+        /// "dodging" a shock that already happened.</summary>
+        public void ReleasePewterDeferredWounds()
+        {
+            if (pewterDeferredBank <= 0f) { pewterDeferredBank = 0f; return; }
+            int dmg = Mathf.RoundToInt(pewterDeferredBank);
+            pewterDeferredBank = 0f;
+            if (dmg > 0 && health != null) health.TakeDamage(dmg);
         }
     }
 }
