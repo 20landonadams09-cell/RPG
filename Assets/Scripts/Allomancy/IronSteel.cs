@@ -13,8 +13,25 @@ namespace BasicRPG.Allomancy
     /// via <see cref="PlayerController.AddAllomanticVelocity"/> (decays with drag, clamped to a
     /// max), and armored enemy anchors are shoved via <see cref="Enemy.AddPush"/>.
     ///
+    /// Lore (locked-in design intent — the blue threads &amp; the push/pull):
+    /// • The blue lines are a MENTAL CUE only — a visual the Mistborn relates to, in their own
+    ///   mind. They are not physical, don't stick to anything, aren't seen by anyone else, and
+    ///   exist only in the Misting's perception. So they're drawn client-side (a LineRenderer from
+    ///   the chest to every anchor in range) and NEVER affect physics — the push/pull does the
+    ///   physics; the line just shows the player where the metal is.
+    /// • Ironpull/Steelpush are a magic FORCE on metal, with the Mistborn's BODY as the source.
+    ///   The force originates at the chest (the live chest bone — see <see cref="ChestOrigin"/>);
+    ///   physics (gravity + drag + the CharacterController) does the rest. Push an immovable
+    ///   (anchored) metal and the full recoil transfers to you — you launch off it; push a loose
+    ///   (movable) one and it's a mass-split (both bodies move). Push straight down on a fixed
+    ///   metal on the ground and you hover/launch upward (the metal can't move through the ground,
+    ///   so the force comes back to you). Sustained "flight" is a series of these hover-jumps —
+    ///   push off fixed metal at an angle to bound in a direction. (Throwing coins to push off —
+    ///   the Mistborn's portable anchors — is canon but not implemented yet.)
+    ///
     /// Force model (Ashwalker PHYSICS-MATH-BOOK):
-    ///   origin    = chest ("center of self"), target = anchor center-of-mass.
+    ///   origin    = the Mistborn's chest bone — live, follows the model's animation (the body is
+    ///               the source of the force). Falls back to root + chestOffset if no Animator.
     ///   dir       = (targetCoM - origin).normalized. Push applies -dir (recoil away from the
     ///               anchor); Pull applies +dir (yank toward it).
     ///   distMult  = DistanceAttenuation(r, plateauRange, effectiveRange) — a plateau + smoothstep
@@ -57,6 +74,9 @@ namespace BasicRPG.Allomancy
         [SerializeField] private Allomancer allomancer;
         [SerializeField] private PlayerController mover;
         [SerializeField] private Camera playerCamera;
+        // Optional: the player's humanoid Animator (for the live chest-bone origin). Auto-found on
+        // the player's model child if unset; null → the root + chestOffset fallback is used.
+        [SerializeField] private Animator playerAnimator;
 
         [Header("Range / Targeting")]
         public float minDistance = 1f;
@@ -115,6 +135,7 @@ namespace BasicRPG.Allomancy
 
         private MetalAnchor currentTarget;
         private Enemy currentTargetEnemy;   // non-null when the target is a movable enemy (loose)
+        private Transform chestBone;        // resolved lazily from the Animator (cached once found)
 
         // Sight-line pool (one LineRenderer per anchor in range), under a child parent.
         private LineRenderer[] sightLines;
@@ -204,7 +225,7 @@ namespace BasicRPG.Allomancy
                 cachedAnchors = Object.FindObjectsByType<MetalAnchor>();
             }
 
-            Vector3 origin = transform.position + chestOffset;
+            Vector3 origin = ChestOrigin();
             Vector3 camForward = playerCamera.transform.forward;
 
             GatherCandidates(origin, camForward);
@@ -226,6 +247,30 @@ namespace BasicRPG.Allomancy
             if (requireLineOfSight && !primaryLOS) return;
 
             ApplyForce(primary, origin, wantPush, allomancer.FlareMultiplier);
+        }
+
+        /// <summary>The world position the push/pull (and its sight line) emanates from — the
+        /// Mistborn's chest, because the body is the source of the force. Resolved lazily from the
+        /// player's humanoid Animator so it tracks the live chest bone as the model animates (run,
+        /// jump, lean, land), instead of a fixed "idle stance" point that floats off the real chest.
+        /// GetBoneTransform can return null until the Animator has bound its avatar, so we re-try
+        /// each frame and cache once found. Falls back to root + chestOffset when there's no
+        /// Animator (capsule player / model not imported), so it never breaks the capsule path.</summary>
+        Vector3 ChestOrigin()
+        {
+            if (chestBone == null)
+            {
+                if (playerAnimator == null) playerAnimator = GetComponentInChildren<Animator>();
+                if (playerAnimator != null)
+                {
+                    chestBone = playerAnimator.GetBoneTransform(HumanBodyBones.Chest)
+                             ?? playerAnimator.GetBoneTransform(HumanBodyBones.UpperChest)
+                             ?? playerAnimator.GetBoneTransform(HumanBodyBones.Spine)
+                             ?? playerAnimator.GetBoneTransform(HumanBodyBones.Hips);
+                }
+            }
+            if (chestBone != null) return chestBone.position;
+            return transform.position + chestOffset;
         }
 
         // ── Candidate gathering + scoring ──────────────────────────────────────────
