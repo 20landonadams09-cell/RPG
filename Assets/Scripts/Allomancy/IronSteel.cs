@@ -61,13 +61,22 @@ namespace BasicRPG.Allomancy
     ///   anchored (nailed/immovable metal: walls, bolted cubes — MetalAnchor.anchored==true) →
     ///               full recoil/pull, capped at maxRecoilSpeed / maxPullSpeed. The anchor doesn't
     ///               move; you launch off it.
-    ///   loose (movable) → mass-split impulse — Newton's third law for two movable bodies. Two
+    ///   loose (movable) → EQUAL-FORCE two-body physics (Newton's 3rd — canon per the 17th-Shard
+    ///               Q&A: the blue line is a force acting EQUALLY on allomancer and metal; "no matter
+    ///               the mass of either object they experience the same newtons of force"). Two
     ///               flavours: an armored enemy (shoved via its CharacterController) and a free
     ///               metal body (MetalAnchor.anchored==false, a Rigidbody — coins/crates/blocks,
-    ///               shoved directly). The same impulse goes to both bodies, so the lighter one
-    ///               moves more: a light coin flies off (you barely move), a heavy block barely
-    ///               budges (you get the recoil instead). Equal momentum (m_obj*v_obj ==
-    ///               m_player*v_player) — the velocity ratio is the inverse of the mass ratio.
+    ///               shoved directly). The force F = strength × m_allomancer × distMult × flare is
+    ///               the SAME on both bodies; the metal's mass NEVER changes F, only its OWN
+    ///               acceleration (a_obj = F/m_obj — lighter metal flies faster) and the connection
+    ///               RANGE (small metal = short range). The player's recoil a_player = F/m_player =
+    ///               strength (the allomancer's own mass cancels) is the SAME off a coin as off a
+    ///               wall while in range — the difference is DURATION: a light coin's short range
+    ///               means it flies out of range fast → brief push → you barely move; a heavy
+    ///               block's long range means it stays → sustained push → you launch. (Momentum is
+    ///               still conserved: equal impulse F·dt on both → m_obj·v_obj == m_player·v_player,
+    ///               the velocity ratio is the inverse of the mass ratio — but via equal FORCE, not
+    ///               a velocity share.)
     ///   frameScale = dt / cooldown spreads the impulse smoothly across frames (no pulsed
     ///               saw-tooth) while preserving the same net impulse/second as the old per-cooldown
     ///               system. Direction is recomputed each frame so diagonal/arced pushes produce
@@ -449,12 +458,29 @@ namespace BasicRPG.Allomancy
             if (distance < minDistance) return;
             Vector3 dir = toTarget / distance; // chest → target (the Pull vector; Push negates it)
 
-            // Plateau + smoothstep-tail distance falloff with an anchor-mass range bonus (heavier
-            // anchors reach farther). Single ownership: this is the only place spatial falloff is
-            // computed — never duplicate it elsewhere (a prior bug came from leaking it into a
-            // second layer and double-counting the falloff).
-            float anchorBonus = Mathf.Clamp(Mathf.Log10(Mathf.Max(1f, currentTargetMass)), 0f, 1f);
-            float effectiveRange = maxRange * (1f + anchorBonus * 0.5f);
+            // Plateau + smoothstep-tail distance falloff. Single ownership: this is the only place
+            // spatial falloff is computed — never duplicate it elsewhere (a prior bug came from
+            // leaking it into a second layer and double-counting the falloff). The EFFECTIVE RANGE
+            // depends on the metal's mass — canon: "larger items can be Connected from further
+            // away", so small metal only connects up close. For a loose free body this is what
+            // makes a light coin give little recoil: its short range means it flies out of range
+            // fast, the push is brief, and the Mistborn barely moves — while the same FORCE is
+            // applied at any in-range distance regardless of mass.
+            float effectiveRange;
+            if (looseBody != null)
+            {
+                // Loose free body: connection range ∝ metal mass (power-law, clamped). A coin
+                // (mass 0.2) → ~5m range; a 1m crate → maxRange; a heavy block → 2×maxRange.
+                float rangeFactor = Mathf.Clamp(Mathf.Pow(Mathf.Max(currentTargetMass, 0.02f), 1.6f), 0.06f, 2f);
+                effectiveRange = maxRange * rangeFactor;
+            }
+            else
+            {
+                // Anchored (or armored-enemy) anchor: the Log10 range bonus (heavier reaches
+                // farther), unchanged.
+                float anchorBonus = Mathf.Clamp(Mathf.Log10(Mathf.Max(1f, currentTargetMass)), 0f, 1f);
+                effectiveRange = maxRange * (1f + anchorBonus * 0.5f);
+            }
             float distMult = inverseDistanceScaling ? DistanceAttenuation(distance, plateauRange, effectiveRange) : 1f;
             // Sub-precision guard: a force below epsilon is treated as exactly zero — not as a
             // tiny nonzero jitter the solver may overreact to. Silent instability is the real
@@ -488,8 +514,8 @@ namespace BasicRPG.Allomancy
                 // Push = recoil away from the anchor (-forceDir). The sign flip lives here at the
                 // application boundary, never in the attenuation math. Three cases:
                 //  • Anchored (nailed): full recoil, the metal never moves — you launch off it.
-                //  • Loose enemy: mass-split shove via the enemy's CharacterController.
-                //  • Loose free body (Rigidbody): same mass-split, the body is shoved directly.
+                //  • Loose enemy: momentum-share shove via the enemy's CharacterController.
+                //  • Loose free body (Rigidbody): equal-force (a=F/m) shove — the body is shoved directly.
                 // Holding F keeps burning — the impulse applies every held frame (continuous).
                 float frameScale = Time.deltaTime / pushCooldown;
                 if (!loose)
@@ -506,22 +532,28 @@ namespace BasicRPG.Allomancy
                     currentTargetEnemy.AddPush(forceDir * targetV * frameScale);
                     mover.AddAllomanticVelocity(-forceDir * playerV * frameScale);
                 }
-                else // loose free metal body (Rigidbody) — Newton's 3rd, mass-split
+                else // loose free metal body (Rigidbody) — Newton's 3rd: EQUAL force on both bodies
                 {
-                    // Equal-and-opposite momentum: the impulse is shared so the lighter body takes
-                    // more velocity (m_obj*v_obj == m_player*v_player). A light coin flies off and
-                    // you barely move; a heavy block barely budges and you get the recoil. Push:
-                    // object +forceDir (away), player -forceDir. The object's share velocity ramps
-                    // it along the push direction (preserving any sideways/fall motion) and caps at
-                    // looseObjectMaxSpeed; as it flies off, distance grows, distMult falls, and the
-                    // push tapers to a stop on its own.
+                    // Canon (17th-Shard Q&A): the blue line is a FORCE acting EQUALLY on the
+                    // allomancer and the metal (Newton's 3rd — "no matter the mass of either object
+                    // they experience the same newtons of force"). The force is ∝ the allomancer's
+                    // mass × strength × distance; the metal's mass NEVER changes the force — it only
+                    // sets the metal's OWN acceleration (a = F/m) and the connection range (small
+                    // metal = short range). So the lighter body accelerates MORE (a=F/m), and the
+                    // player's recoil acceleration is the SAME off a coin as off a wall (F/m_player
+                    // — the allomancer's own mass cancels). The difference is DURATION: a light coin's
+                    // short range (above) means it flies out of range fast → brief push → you barely
+                    // move; a heavy block has a long range, stays put → sustained push → you launch.
+                    // Momentum is still conserved (equal impulse F·dt on both → m_obj·v_obj ==
+                    // m_player·v_player), but via equal FORCE, not a velocity share. Holding F keeps
+                    // burning (continuous force each held frame).
+                    float strength = loosePushForce * flare * distMult;            // force per unit allomancer mass
+                    float F = strength * playerMass;                              // total allomantic force (∝ allomancer mass)
                     float mObj = Mathf.Max(primary.mass, 0.05f);
-                    float total = playerMass + mObj;
-                    float pushMag = loosePushForce * flare * distMult;
-                    float objV = Mathf.Min(pushMag * (playerMass / total), looseObjectMaxSpeed);
-                    float playerV = Mathf.Min(pushMag * (mObj / total), maxRecoilSpeed);
-                    ShoveRigidbody(looseBody, forceDir, objV, frameScale);
-                    mover.AddAllomanticVelocity(-forceDir * playerV * frameScale);
+                    float playerAccel = strength;                                // F/m_player (mass cancels) — independent of the object
+                    float objAccel = F / mObj;                                   // F/m_obj — lighter metal accelerates more
+                    ShoveRigidbody(looseBody, forceDir, objAccel * Time.deltaTime, looseObjectMaxSpeed);   // object +forceDir (away)
+                    mover.AddAllomanticVelocity(-forceDir * playerAccel * Time.deltaTime);                 // player -forceDir (capped by AllomanticMaxSpeed)
                 }
                 allomancer.DrainMetal(MetalType.Steel, activeDrainPerSecond * flare * Time.deltaTime);
                 if (Time.deltaTime > 0f) didActFlag = true; // only count a real (non-frozen) impulse
@@ -545,36 +577,36 @@ namespace BasicRPG.Allomancy
                     mover.AddAllomanticVelocity(forceDir * playerV * frameScale);
                     currentTargetEnemy.AddPush(-forceDir * objectV * frameScale);
                 }
-                else // loose free metal body (Rigidbody) — Newton's 3rd, mass-split
+                else // loose free metal body (Rigidbody) — Newton's 3rd: EQUAL force on both bodies
                 {
-                    // Equal-and-opposite momentum (m_obj*v_obj == m_player*v_player): the lighter
-                    // body is yanked more. Pull: object -forceDir (toward you), player +forceDir
-                    // (toward the anchor). The object's share velocity ramps it along the pull
-                    // direction (toward you), preserving sideways/fall motion, capped.
+                    // Mirror of the Push branch: equal force F on both, a = F/m. The lighter body
+                    // is yanked more. Pull: object -forceDir (toward you), player +forceDir (toward
+                    // the anchor). A light coin's short range means it snaps to you fast then the
+                    // push ends; a heavy block barely budges and you get dragged toward it.
+                    float strength = loosePullForce * flare * distMult;
+                    float F = strength * playerMass;
                     float mObj = Mathf.Max(primary.mass, 0.05f);
-                    float total = playerMass + mObj;
-                    float pullMag = loosePullForce * flare * distMult;
-                    float objV = Mathf.Min(pullMag * (playerMass / total), looseObjectMaxSpeed);
-                    float playerV = Mathf.Min(pullMag * (mObj / total), maxPullSpeed);
-                    ShoveRigidbody(looseBody, -forceDir, objV, frameScale);
-                    mover.AddAllomanticVelocity(forceDir * playerV * frameScale);
+                    float playerAccel = strength;
+                    float objAccel = F / mObj;
+                    ShoveRigidbody(looseBody, -forceDir, objAccel * Time.deltaTime, looseObjectMaxSpeed);  // object -forceDir (toward you)
+                    mover.AddAllomanticVelocity(forceDir * playerAccel * Time.deltaTime);                 // player +forceDir (toward anchor)
                 }
                 allomancer.DrainMetal(MetalType.Iron, activeDrainPerSecond * flare * Time.deltaTime);
                 if (Time.deltaTime > 0f) didActFlag = true; // only count a real (non-frozen) impulse
             }
         }
 
-        /// <summary>Shove a loose free-metal Rigidbody along <paramref name="shoveDir"/> up to its
-        /// mass-split share velocity <paramref name="shareV"/> (Newton's 3rd — the lighter body's
-        /// bigger share). Only the along-<paramref name="shoveDir"/> velocity component is driven
-        /// (ramped toward <paramref name="shareV"/> at <paramref name="shareV"/>*<paramref name="frameScale"/>
-        /// per frame, capped), so any perpendicular motion (gravity fall, a previous sideways shove)
-        /// is preserved, never cancelled. Wakes a sleeping body so it reacts immediately.</summary>
-        static void ShoveRigidbody(Rigidbody rb, Vector3 shoveDir, float shareV, float frameScale)
+        /// <summary>Apply a per-frame velocity delta <paramref name="deltaV"/> (= acceleration × dt)
+        /// to a loose free-metal Rigidbody along <paramref name="shoveDir"/> — the a=F/m velocity
+        /// change from the allomantic force. Only the along-<paramref name="shoveDir"/> component
+        /// is changed (preserving any perpendicular motion — gravity fall, a prior sideways shove —
+        /// never cancelled), and the along-component is capped at <paramref name="maxSpeed"/> so a
+        /// light coin doesn't run away to absurd speed. Wakes a sleeping body so it reacts at once.</summary>
+        static void ShoveRigidbody(Rigidbody rb, Vector3 shoveDir, float deltaV, float maxSpeed)
         {
             if (rb == null || rb.isKinematic) return;
             float along = Vector3.Dot(rb.velocity, shoveDir);
-            float newAlong = Mathf.Min(along + shareV * frameScale, shareV); // ramp toward shareV, capped
+            float newAlong = Mathf.Min(along + deltaV, maxSpeed); // apply the impulse delta, cap the along-component
             rb.velocity += shoveDir * (newAlong - along);
             rb.WakeUp();
         }
