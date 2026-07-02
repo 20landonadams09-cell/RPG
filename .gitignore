@@ -44,3 +44,15 @@ Thumbs.db
 /allomantic_force_kernel_proof.pdf
 /allomantic_force_kernel_proof (1).pdf
 /GDD.zip
+# Nine more foreign OSS archives dropped in as REFERENCE-ONLY (see REFERENCE_ARCHIVES.md).
+# NOT under Assets/ → Unity never compiles them; never committed. Two are foreign ability-system
+# frameworks that would replace the canon Allomancer, two are foreign inventories — none are deps.
+/Flexi-main.zip
+/Inventory-Pro-master.zip
+/Inventory-master.zip
+/NPBehave-master.zip
+/Quest-System-Pro-master.zip
+/Unity3d-Finite-State-Machine-master.zip
+/awesome-opensource-unity-master.zip
+/fluid-behavior-tree-develop.zip
+/unity-gameplay-ability-system-main.zip
