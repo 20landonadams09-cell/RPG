@@ -5,10 +5,14 @@ using BasicRPG.Interaction;
 namespace BasicRPG.Allomancy
 {
     /// <summary>
-    /// Radial metal-selection wheel (port of Ashwalker's MetalWheel family, rebuilt in code with
-    /// no prefab). Press Tab: the world mists over, time freezes, and a ring of all 16 metals
-    /// appears; move the mouse to hover one (selected by direction from screen center), click to
-    /// make it the active metal, Esc/Tab to cancel. Single active metal — no primary/secondary.
+    /// Radial metal-SELECTION wheel (rebuilt in code, no prefab). Press Tab: the world mists over,
+    /// time freezes, and a ring of all 16 metals appears. Hover one (by direction from screen
+    /// center) and CLICK to toggle it in/out of the burn set — toggle as many as you want (multi-
+    /// burn is canon: Mistborn allomancers regularly burn 2+ metals at once). Press Tab again to
+    /// APPLY the set (those metals start/stop burning) and close; Esc to discard and close. The
+    /// burn set is applied only on close, so no allomantic effects (e.g. Tin's first-person flip)
+    /// fire while the wheel is open. The flare wheel (MetalRingDriver) then shows one arc per
+    /// burning metal with its reserve.
     ///
     /// Self-building: constructs its own ScreenSpaceOverlay canvas (mist background + drifting
     /// ribbons + slots + center readout) in Awake, so the scene builder only wires `allomancer`.
@@ -34,6 +38,11 @@ namespace BasicRPG.Allomancy
         private bool isOpen;
         private int currentSlotIndex;
         private bool weLocked;        // true if THIS wheel set InteractionLock.IsLocked
+
+        // Pending burn set while the wheel is open (a per-metal toggle buffer). Snapshotted from
+        // the Allomancer on Open, mutated by clicks, applied to the Allomancer only on a confirmed
+        // close (Tab). A cancelled close (Esc) discards it — no live effects while open.
+        private bool[] pendingBurn;
 
         private Font font;
         private Slot[] slots;
@@ -100,14 +109,14 @@ namespace BasicRPG.Allomancy
             if (Keybinds.WheelDown())
             {
                 if (!isOpen && !InteractionLock.IsLocked) Open();
-                else if (isOpen) Close(confirm: false);   // Tab/Share-again cancels (no confirm)
+                else if (isOpen) Close(confirm: true);    // Tab/Share-again APPLY the burn set + close
                 return;
             }
 
             if (!isOpen) { AnimateMist(); return; }
 
-            if (Input.GetKeyDown(KeyCode.Escape)) { Close(confirm: false); return; }
-            if (Keybinds.WheelConfirmDown()) { Close(confirm: true); return; }
+            if (Input.GetKeyDown(KeyCode.Escape)) { Close(confirm: false); return; }  // discard
+            if (Keybinds.WheelConfirmDown()) { TogglePending(); return; }             // click = toggle hovered (stay open)
 
             HandleHover();
             RefreshAll();
@@ -129,7 +138,9 @@ namespace BasicRPG.Allomancy
             Time.timeScale = 0f;
             if (!InteractionLock.IsLocked) { InteractionLock.IsLocked = true; weLocked = true; }
 
-            // Snap hover to the currently active metal (if it's on the wheel).
+            // Snapshot the current burn set into the pending buffer (toggles mutate this; applied
+            // only on a confirmed close). Snap hover to the selected metal for convenience.
+            pendingBurn = allomancer != null ? allomancer.SaveBurningSet() : new bool[Metals.Count];
             if (allomancer != null)
             {
                 int idx = IndexOf(allomancer.ActiveMetal);
@@ -150,14 +161,34 @@ namespace BasicRPG.Allomancy
             Time.timeScale = 1f;
             if (weLocked) { InteractionLock.IsLocked = false; weLocked = false; }
 
-            if (confirm && allomancer != null && currentSlotIndex >= 0 && currentSlotIndex < slots.Length)
+            // Confirm (Tab) → apply the pending burn set to the Allomancer (starts/stops metals to
+            // match). Cancel (Esc) → discard; the Allomancer's burn set is untouched.
+            if (confirm && allomancer != null && pendingBurn != null)
+                allomancer.SetBurningSet(pendingBurn);
+            pendingBurn = null;
+        }
+
+        // Click while open: toggle the hovered metal in/out of the pending burn set (visual only —
+        // applied on close). Locked / empty metals can't be toggled on.
+        void TogglePending()
+        {
+            if (allomancer == null || pendingBurn == null) return;
+            if (currentSlotIndex < 0 || currentSlotIndex >= slots.Length) return;
+            MetalType m = slots[currentSlotIndex].metal;
+            int i = (int)m;
+            if (pendingBurn[i])
             {
-                MetalType m = slots[currentSlotIndex].metal;
-                if (allomancer.IsUnlocked(m) && allomancer.GetReserve(m) > 0f)
-                    allomancer.SetCurrentMetal(m);
-                else
-                    NotificationUI.Show(MetalDatabase.Get(m)?.displayName + " is locked/empty");
+                pendingBurn[i] = false;   // always allow toggling OFF
             }
+            else if (allomancer.IsUnlocked(m) && allomancer.GetReserve(m) > 0f)
+            {
+                pendingBurn[i] = true;    // toggle ON only if unlocked + has reserve
+            }
+            else
+            {
+                NotificationUI.Show(MetalDatabase.Get(m)?.displayName + " is locked/empty");
+            }
+            UpdateCenter();
         }
 
         // ── Hover / Refresh ───────────────────────────────────────────────────────
@@ -212,7 +243,7 @@ namespace BasicRPG.Allomancy
 
                 bool unlocked = allomancer.IsUnlocked(s.metal);
                 float norm = Mathf.Clamp01(allomancer.GetReserve(s.metal) / max);
-                bool burningThis = allomancer.IsBurning && allomancer.ActiveMetal == s.metal;
+                bool burningThis = pendingBurn != null && pendingBurn[(int)s.metal];
 
                 SlotState st;
                 if (!unlocked)               st = SlotState.Locked;
@@ -353,7 +384,7 @@ namespace BasicRPG.Allomancy
                 new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 60f),
                 new Vector2(600f, 28f), 16, TextAnchor.MiddleCenter);
             hint.color = new Color(1f, 1f, 1f, 0.6f);
-            hint.text = "Tab / Esc: cancel    Click: select";
+            hint.text = "Click: toggle burn    Tab: apply    Esc: cancel";
         }
 
         void BuildSlots()

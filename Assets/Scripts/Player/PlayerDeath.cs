@@ -21,9 +21,14 @@ namespace BasicRPG.Player
         [SerializeField] private Transform spawnPoint;
         [SerializeField] private float respawnDelay = 3f;
 
+        [Header("Fall-out-of-world")]
+        [Tooltip("If the player drops below this world Y (fell off / through the arena — e.g. launched off the edge by allomancy), trigger respawn. Set well below the lowest walkable surface so normal play never trips it.")]
+        [SerializeField] private float fallYThreshold = -20f;
+
         private Vector3 startPos;
         private bool weLocked;
         private bool respawning;
+        private bool fellOut;       // set when the respawn was triggered by falling (not combat) → overlay text
         private Image overlay;
         private Text overlayText;
         private Canvas overlayCanvas;
@@ -74,6 +79,8 @@ namespace BasicRPG.Player
         {
             if (respawning) return;
             respawning = true;
+            if (overlayText != null)
+                overlayText.text = fellOut ? "Fell out of the world — respawning…" : "You died — respawning…";
             if (!InteractionLock.IsLocked) { InteractionLock.IsLocked = true; weLocked = true; }
             overlayCanvas.gameObject.SetActive(true);
             StopAllCoroutines();
@@ -126,6 +133,19 @@ namespace BasicRPG.Player
 
             if (weLocked) { InteractionLock.IsLocked = false; weLocked = false; }
             respawning = false;
+            fellOut = false;
+        }
+
+        void Update()
+        {
+            // Fall-out-of-world: a Steelpush off the edge (no perimeter) or a physics freak-out can
+            // drop the player below the arena. Catch it here and respawn at the spawn point instead
+            // of falling forever. Skipped while already respawning (the teleport sets the new Y).
+            if (!respawning && transform.position.y < fallYThreshold)
+            {
+                fellOut = true;
+                HandleDeath();
+            }
         }
 
         void OnDestroy()

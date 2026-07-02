@@ -36,3 +36,11 @@ Thumbs.db
 /Erbium-master.zip
 /unity-rpg-master.zip
 /MistbornAllomancyKernel.cs
+# Foreign "steel-push / iron-pull proof" + "allomantic force kernel" material re-pushed with
+# download links. NOT part of BasicRPG — Iron/Steel stays one IronSteel component (no foreign
+# SteelPushSystem/BurnMath kernel). Ignored so they can't be committed by accident.
+/steelpush_ironpull_proof.pdf
+/steelpush_ironpull_simulator.html
+/allomantic_force_kernel_proof.pdf
+/allomantic_force_kernel_proof (1).pdf
+/GDD.zip

@@ -22,6 +22,12 @@ namespace BasicRPG.Combat
         /// <summary>Current horizontal+vertical velocity from the CharacterController (for Tin
         /// vibration detection — BasicRPG enemies have no NavMeshAgent).</summary>
         public Vector3 Velocity => controller != null ? controller.velocity : Vector3.zero;
+
+        /// <summary>Grounded (for the Iron/Steel mobility model): the enemy's CharacterController
+        /// reports ground contact, OR the <see cref="GroundProbe"/> backstop says so. Read by IronSteel
+        /// to estimate the enemy's contact normal force N_target (a grounded, armored enemy is
+        /// braced against the earth → low mobility → hard to shove; an airborne one is free).</summary>
+        public bool IsGrounded => controller != null && (controller.isGrounded || GroundProbe());
         [SerializeField] private Health health;
         [SerializeField] private CharacterController controller;
         [SerializeField] private Renderer rend;

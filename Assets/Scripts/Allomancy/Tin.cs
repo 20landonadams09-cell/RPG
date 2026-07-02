@@ -69,6 +69,10 @@ namespace BasicRPG.Allomancy
         private float originalAudioVolume;
         private bool hasCameraBaselines;
 
+        // Tin enhances senses → the player sees through their own eyes (first person).
+        // Resolved from playerCamera (ThirdPersonCamera lives on the same GameObject).
+        private ThirdPersonCamera thirdPersonCamera;
+
         private float currentOverloadVisual;
         private float currentOverloadAudio;
 
@@ -112,6 +116,8 @@ namespace BasicRPG.Allomancy
                 if (highPass == null) highPass = playerCamera.gameObject.AddComponent<AudioHighPassFilter>();
                 highPass.enabled = false;
             }
+            // ThirdPersonCamera shares the camera GameObject (scene builder wires both on camObj).
+            thirdPersonCamera = playerCamera != null ? playerCamera.GetComponent<ThirdPersonCamera>() : null;
             originalAudioVolume = AudioListener.volume;
 
             SetupVolume();
@@ -228,6 +234,8 @@ namespace BasicRPG.Allomancy
             if (tinVolume != null) tinVolume.weight = 1f;
             if (hasCameraBaselines && playerCamera != null)
                 playerCamera.farClipPlane = originalFarClip + farClipBonus;
+            // Enhanced senses → see through your own eyes (first person).
+            if (thirdPersonCamera != null) thirdPersonCamera.SetFirstPerson(true);
         }
 
         void OnStopBurning(bool ranOut)
@@ -237,6 +245,8 @@ namespace BasicRPG.Allomancy
                 playerCamera.fieldOfView = originalFOV;
                 playerCamera.farClipPlane = originalFarClip;
             }
+            // Senses back to normal → return to the third-person orbit.
+            if (thirdPersonCamera != null) thirdPersonCamera.SetFirstPerson(false);
             AudioListener.volume = originalAudioVolume;
             if (lowPass != null) lowPass.enabled = false;
             if (highPass != null) highPass.enabled = false;

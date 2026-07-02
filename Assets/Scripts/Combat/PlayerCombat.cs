@@ -18,6 +18,11 @@ namespace BasicRPG.Combat
         [SerializeField] private Inventory inventory;
         [SerializeField] private Stamina stamina;
         [SerializeField] private CharacterController controller;
+        // Optional: the player's Allomancer. When Iron or Steel is burning, LMB belongs to allomancy
+        // (push/pull), so the LMB melee attack is suppressed. (RMB block is NOT suppressed — block
+        // stays on for all metals; flaring is via the scroll wheel + R/Options.) Wired by the scene
+        // builder; null = no suppression (safe degradation).
+        [SerializeField] private Allomancer allomancer;
 
         [Header("Melee")]
         [SerializeField] private float baseDamage = 15f;
@@ -56,6 +61,12 @@ namespace BasicRPG.Combat
         public void SetDamageReduction(float takeFraction) => incomingDamageMultiplier = takeFraction;
         public void SetPewterDeferFraction(float f) => pewterDeferredFraction = Mathf.Clamp01(f);
 
+        // True while the player is burning Iron or Steel — in that state LMB is push/pull, so the
+        // LMB melee attack yields to allomancy. (RMB no longer yields — block stays on all metals;
+        // flaring is done via the scroll wheel + R/Options flare-to-max, not RMB.)
+        bool AllomancyOwnsMouse() =>
+            allomancer != null && (allomancer.IsMetalBurning(MetalType.Steel) || allomancer.IsMetalBurning(MetalType.Iron));
+
         public bool IsDodging => isDodging;
         public bool IsBlocking => isBlocking;
         public bool IsInvulnerable => Time.time < iFrameEnd;
@@ -74,9 +85,12 @@ namespace BasicRPG.Combat
             // No combat while dialogue or inventory owns input.
             if (InteractionLock.IsLocked) { isBlocking = false; return; }
 
+            // RMB blocks for ALL metals, including while burning Iron/Steel (the flare wheel owns
+            // flaring now — scroll wheel + R/Options — so RMB is free to block again, no contextual
+            // split). Only the LMB melee attack yields to allomancy (below).
             isBlocking = !isDodging && Keybinds.BlockHeld();
 
-            if (!isBlocking && !isDodging && Keybinds.AttackDown()
+            if (!isBlocking && !isDodging && Keybinds.AttackDown() && !AllomancyOwnsMouse()
                 && Time.time >= lastAttackTime + attackCooldown)
             {
                 lastAttackTime = Time.time;

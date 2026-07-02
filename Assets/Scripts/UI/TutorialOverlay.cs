@@ -288,8 +288,8 @@ namespace BasicRPG.UI
                         ? $"Press {PrettyKey(step.key)} (or {PrettyKey(step.padKey)})  ▸"
                         : $"Press {PrettyKey(step.key)}  ▸";
                 case TutorialStepType.OpenWheel:    return "Open the wheel (Tab / Share)  ▸";
-                case TutorialStepType.SelectMetal:  return "Click the metal in the wheel  ▸";
-                case TutorialStepType.StartBurning: return "Press B (or △) to burn  ▸";
+                case TutorialStepType.SelectMetal:  return "Press 1–8 to select the metal  ▸";
+                case TutorialStepType.StartBurning: return "Tab ▸ click metal ▸ Tab to burn  ▸";
                 case TutorialStepType.PushOrPull:   return "Hold F (push) or Q (pull)  ▸";
                 case TutorialStepType.FeelOverload: return "Walk into the bright light  ▸";
                 case TutorialStepType.SuppressThug: return "Approach a Thug (Copper burning)  ▸";

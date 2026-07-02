@@ -54,7 +54,8 @@ namespace BasicRPG.Player
                 equippedArmor = inventory != null ? inventory.SaveEquippedArmor() : null,
                 reserves = allomancer != null ? allomancer.SaveReserves() : null,
                 activeMetal = allomancer != null ? (int)allomancer.ActiveMetal : 0,
-                isBurning = allomancer != null && allomancer.IsBurning,
+                burningSet = allomancer != null ? allomancer.SaveBurningSet() : null,
+                burnPaused = allomancer != null && allomancer.IsBurningPaused,
             };
 
             if (inventory != null)
@@ -125,7 +126,7 @@ namespace BasicRPG.Player
             }
 
             if (allomancer != null && data.reserves != null)
-                allomancer.LoadReserves(data.reserves, (MetalType)data.activeMetal, data.isBurning);
+                allomancer.LoadReserves(data.reserves, (MetalType)data.activeMetal, data.burningSet, data.burnPaused);
 
             NotificationUI.Show("Game loaded");
         }
@@ -143,7 +144,8 @@ namespace BasicRPG.Player
             public BagEntry[] bag;
             public float[] reserves;
             public int activeMetal;
-            public bool isBurning;
+            public bool[] burningSet;   // multi-burn burn-set membership (per (int)MetalType)
+            public bool burnPaused;     // B-key global pause state
         }
 
         [System.Serializable]

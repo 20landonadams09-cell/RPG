@@ -6,6 +6,8 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UIDocument = UnityEngine.UIElements.UIDocument;
+using PanelSettings = UnityEngine.UIElements.PanelSettings;
 using UnityEngine.Rendering.Universal;
 using BasicRPG.Player;
 using BasicRPG.Stats;
@@ -34,8 +36,10 @@ public static class RPGSceneBuilder
     const string TIN_TEST_PATH = "Assets/Scenes/TinTest.unity";
     const string PEWTER_TEST_PATH = "Assets/Scenes/PewterTest.unity";
     const string IRONSTEEL_TEST_PATH = "Assets/Scenes/IronSteelTest.unity";
+    const string IRONSTEEL_TEST_NONPC_PATH = "Assets/Scenes/IronSteelTestNoNPC.unity";
     const string ZINCBRASS_TEST_PATH = "Assets/Scenes/ZincBrassTest.unity";
     const string COPPERBRONZE_TEST_PATH = "Assets/Scenes/CopperBronzeTest.unity";
+    const string ALLMETALS_SANDBOX_PATH = "Assets/Scenes/AllMetalsSandbox.unity";
 
     const string URP_LIT_SHADER = "Universal Render Pipeline/Lit";
 
@@ -55,6 +59,7 @@ public static class RPGSceneBuilder
 
         SetupURP();
         EnsureRightStickAxes();
+        EnsurePanelSettings();
         BuildScene();
 
         AssetDatabase.SaveAssets();
@@ -64,7 +69,9 @@ public static class RPGSceneBuilder
 
     // ---------------------------------------------------------------- URP ----
 
-    static void SetupURP()
+    // Internal so the TitleSequenceSceneBuilder (same assembly) can call this to prevent the
+    // whole-scene-pink bug before building its scene — see ashwalker-pink-renderpipeline-fix.
+    internal static void SetupURP()
     {
         // Renderer data
         UniversalRendererData renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(URP_RENDERER_PATH);
@@ -116,6 +123,34 @@ public static class RPGSceneBuilder
         GraphicsSettings.defaultRenderPipeline = pipeline;
         EditorUtility.SetDirty(pipeline);
         Log("URP assigned as the default render pipeline.");
+    }
+
+    // ----------------------------------------------------------- UI Toolkit ----
+    // A UIDocument needs a PanelSettings asset reference to render. A fresh project ships none, and
+    // this project has never opened the UI Builder, so the builder ensures one at edit time. The
+    // asset is created under Assets/Settings/UI Toolkit (next to the URP assets) and assigned to the
+    // allomancy HUD's UIDocument; the reference persists into the saved scene. Idempotent: reuses an
+    // existing PanelSettings anywhere in the project first. Screen-space-overlay UI Toolkit needs no
+    // Camera and no URP feature, so the defaults (ConstantPixelSize) are fine.
+    const string UITK_DIR  = "Assets/Settings/UI Toolkit";
+    const string PANEL_SETTINGS_PATH = "Assets/Settings/UI Toolkit/PanelSettings.asset";
+
+    static PanelSettings EnsurePanelSettings()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:PanelSettings");
+        if (guids.Length > 0)
+            return AssetDatabase.LoadAssetAtPath<PanelSettings>(AssetDatabase.GUIDToAssetPath(guids[0]));
+
+        if (!AssetDatabase.IsValidFolder(UITK_DIR))
+            AssetDatabase.CreateFolder("Assets/Settings", "UI Toolkit");
+
+        var ps = ScriptableObject.CreateInstance<PanelSettings>();
+        ps.name = "PanelSettings";
+        AssetDatabase.CreateAsset(ps, PANEL_SETTINGS_PATH);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Log($"Created PanelSettings: {PANEL_SETTINGS_PATH}");
+        return ps;
     }
 
     // ---------------------------------------------------------- Input axes ----
@@ -211,10 +246,11 @@ public static class RPGSceneBuilder
         Material litMat = CreateLitMaterial("GroundMat", new Color(0.25f, 0.45f, 0.25f, 1f));
         Material playerMat = CreateLitMaterial("PlayerMat", new Color(0.30f, 0.55f, 0.85f, 1f));
 
-        // Ground
+        // Ground — 200×200 (plane default 10u, scaled ×20). Large enough to walk ~100m from a
+        // metal to test allomantic range falloff / out-of-range (the anchored plate reaches ~90m).
         GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
         ground.name = "Ground";
-        ground.transform.localScale = new Vector3(5f, 1f, 5f); // plane default 10u -> 50x50
+        ground.transform.localScale = new Vector3(20f, 1f, 20f); // plane default 10u -> 200x200
         ground.GetComponent<Renderer>().sharedMaterial = litMat;
 
         // Player
@@ -672,14 +708,23 @@ public static class RPGSceneBuilder
     }
 
     [MenuItem("RPG/Build Iron/Steel Test Scene")]
-    public static void BuildIronSteelTest()
+    public static void BuildIronSteelTest() => BuildIronSteelTestScene(true, IRONSTEEL_TEST_PATH);
+
+    [MenuItem("RPG/Build Iron/Steel Test Scene (No NPCs)")]
+    public static void BuildIronSteelTestNoNpc() => BuildIronSteelTestScene(false, IRONSTEEL_TEST_NONPC_PATH);
+
+    /// <summary>Builds an Iron/Steel test scene. withNpcs=true includes wandering armored enemies
+    /// (also anchors — you can shove them); false is a clean physics/locomotion arena (no combat)
+    /// for testing vertical self-launch and the mass-split in isolation.</summary>
+    static void BuildIronSteelTestScene(bool withNpcs, string path)
     {
         if (EditorApplication.isPlaying)
         {
-            Debug.LogError("[RPGBuilder] Cannot build while in Play mode. Exit Play mode first, then run RPG → Build Iron/Steel Test Scene.");
+            Debug.LogError("[RPGBuilder] Cannot build while in Play mode. Exit Play mode first, then run the RPG → Build Iron/Steel Test Scene menu item.");
             return;
         }
-        Log("Starting Iron/Steel test scene build...");
+        Log(withNpcs ? "Starting Iron/Steel test scene build (with NPCs)..."
+                     : "Starting Iron/Steel test scene build (no NPCs)...");
         if (!Directory.Exists(SETTINGS_DIR)) AssetDatabase.CreateFolder("Assets", "Settings");
         if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
 
@@ -692,31 +737,31 @@ public static class RPGSceneBuilder
         BuildPlayerSystems(player, hudCanvas, out Inventory inventory,
                            out ItemSO iron, out ItemSO steel, out ItemSO pewter);
         BuildAllomancy(player, hudCanvas, inventory, iron, steel, pewter);
-        BuildIronSteelTestContent(player, hudCanvas);
+        BuildIronSteelTestContent(player, hudCanvas, withNpcs);
 
         EditorSceneManager.MarkSceneDirty(scene);
-        EditorSceneManager.SaveScene(scene, IRONSTEEL_TEST_PATH);
-        Log($"Scene saved: {IRONSTEEL_TEST_PATH}");
-        AddToBuildSettings(IRONSTEEL_TEST_PATH);
+        EditorSceneManager.SaveScene(scene, path);
+        Log($"Scene saved: {path}");
+        AddToBuildSettings(path);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Log("Iron/Steel test scene complete. Tab → Steel → B → hold F to push off a wall/anchor; Tab → Iron → B → hold Q to pull toward one. Shove enemies (they're anchors too).");
+        Log("Iron/Steel test scene complete. Tab → Steel → B → hold LMB to push the nearest metal (RMB to flare, MMB to freeze-aim a different target); Tab → Iron → B → hold LMB to pull. Stand on the launch plate, jump, and push straight down to launch upward.");
     }
 
     /// <summary>Iron/Steel test scene: scattered metal anchor cubes (push off / pull toward),
-    /// a wall anchor behind spawn to Steelpush off, a raised anchor to Ironpull up to, and
-    /// wandering enemies to shove.</summary>
-    static void BuildIronSteelTestContent(GameObject player, Transform hudCanvas)
+    /// a wall anchor behind spawn to Steelpush off, a raised anchor to Ironpull up to, a ground
+    /// launch plate for vertical self-launch, loose metal bodies (mass-split demo), and (when
+    /// withNpcs) wandering enemies to shove.</summary>
+    static void BuildIronSteelTestContent(GameObject player, Transform hudCanvas, bool withNpcs)
     {
         // Metallic anchor material — full metallic + high smoothness so pushable metal reads as
-        // metal (reflective) vs the matte non-metal walls. Enemies here are armored (also anchors)
-        // so they're metallic too — it's clear you can shove them.
+        // metal (reflective) vs the matte non-metal walls. Enemies (when present) are armored
+        // (also anchors) so they're metallic too — it's clear you can shove them.
         Material anchorMat = CreateMetalMaterial("AnchorMat", new Color(0.78f, 0.80f, 0.84f, 1f));
         Material wallMat = CreateLitMaterial("ISWallMat", new Color(0.40f, 0.42f, 0.46f, 1f));
-        Material enemyMat = CreateMetalMaterial("ISEnemyMat", new Color(0.82f, 0.30f, 0.26f, 1f));
 
-        // A wall right behind spawn — aim back + Steelpush (F) to launch forward off it.
+        // A wall right behind spawn — push off it to launch forward.
         MakeAnchor("Anchor_Wall", new Vector3(0f, 2f, -6f), new Vector3(8f, 4f, 0.5f), anchorMat);
 
         // Ground-level anchor cubes scattered around to push off / pull toward.
@@ -724,13 +769,38 @@ public static class RPGSceneBuilder
         MakeAnchor("Anchor_B", new Vector3(-6f, 0.5f, 5f), new Vector3(1f, 1f, 1f), anchorMat);
         MakeAnchor("Anchor_C", new Vector3(0f, 0.5f, 10f), new Vector3(1.2f, 1.2f, 1.2f), anchorMat);
 
-        // A raised anchor on a pillar — Ironpull (Q) to yank up onto it. (Pillar is NOT metal.)
+        // A raised anchor on a pillar — Ironpull to yank up onto it. (Pillar is NOT metal.)
         MakeCube("Pillar", new Vector3(10f, 1f, -4f), new Vector3(2f, 2f, 2f), wallMat);
         MakeAnchor("Anchor_High", new Vector3(10f, 2.6f, -4f), new Vector3(1f, 1f, 1f), anchorMat);
 
         // A far platform with an anchor — pull yourself across the gap to reach it. (Platform is NOT metal.)
         MakeCube("FarPlatform", new Vector3(16f, 0.5f, 0f), new Vector3(4f, 1f, 4f), wallMat);
         MakeAnchor("Anchor_Far", new Vector3(16f, 1.2f, 0f), new Vector3(1f, 1f, 1f), anchorMat);
+
+        // RANGE-TEST anchor at ~95m (just past the anchored plate's ~90m reach), on a low platform.
+        // Walk out to it: the launch plate (at spawn, ~90m range) drops OUT of range → no push, while
+        // this far anchor is IN range → pushable. Lets you feel the distance falloff / out-of-range
+        // edge that the old 50×50 arena never showed. The platform is NOT metal.
+        MakeCube("FarPlatform2", new Vector3(95f, 0.25f, 0f), new Vector3(3f, 0.5f, 3f), wallMat);
+        MakeAnchor("Anchor_FarRange", new Vector3(95f, 1.2f, 0f), new Vector3(1f, 1f, 1f), anchorMat);
+
+        // PERIMETER curb — low non-metal walls around the 200×200 ground (at ±98) so an allomantic
+        // shove off the edge doesn't drop you off the island mid-test (the fall-respawn is the
+        // backstop, this stops most accidental exits). Low enough to see over; NOT metal so never a
+        // push/pull target. (Falls that clear the curb are still caught by PlayerDeath.fallYThreshold.)
+        const float curb = 98f;
+        MakeCube("Curb_N", new Vector3(0f, 0.75f,  curb), new Vector3(2f * curb, 1.5f, 1f), wallMat);
+        MakeCube("Curb_S", new Vector3(0f, 0.75f, -curb), new Vector3(2f * curb, 1.5f, 1f), wallMat);
+        MakeCube("Curb_E", new Vector3( curb, 0.75f, 0f), new Vector3(1f, 1.5f, 2f * curb), wallMat);
+        MakeCube("Curb_W", new Vector3(-curb, 0.75f, 0f), new Vector3(1f, 1.5f, 2f * curb), wallMat);
+
+        // LAUNCH PLATE — a large flat ANCHORED metal plate centred directly under the spawn. Stand
+        // on it and hold LMB pushing straight DOWN: the plate can't move (anchored), so the full
+        // recoil launches you straight up (the vertical-self-launch scenario). Centred at z=0 (not
+        // in front) so the chest→plate vector is straight down → the recoil is straight up; placing
+        // it ahead of spawn would launch you backward+up instead. The chest sits >1m above the
+        // plate centre, so it clears IronSteel.minDistance and connects from a standing start.
+        MakeAnchor("Anchor_LaunchPlate", new Vector3(0f, 0.10f, 0f), new Vector3(4f, 0.2f, 4f), anchorMat);
 
         // LOOSE metal — free, movable bodies (copper so they read distinct from the nailed grey
         // anchors). Newton's-third-law demonstration: pushing/pulling these is a mass-split, so
@@ -741,27 +811,36 @@ public static class RPGSceneBuilder
         MakeLooseAnchor("LooseCrate", new Vector3(-2.5f, 0.40f, 6f), new Vector3(0.80f, 0.80f, 0.80f), looseMat, 1.00f); // equal to you → both move
         MakeLooseAnchor("LooseBlock", new Vector3( 0.0f, 0.75f, 9f), new Vector3(1.50f, 1.50f, 1.50f), looseMat, 20.0f); // heavy → you move, it creeps
 
-        // Wandering enemies (already carry MetalAnchor via CreateEnemy → Steelpush shoves them).
-        CreateEnemy("ISEnemy_A", new Vector3(3f, 1f, 3f),
-            new Vector3[] { new Vector3(3f, 0f, 3f), new Vector3(-3f, 0f, 3f), new Vector3(0f, 0f, 7f) },
-            enemyMat, null, 0);
-        CreateEnemy("ISEnemy_B", new Vector3(-4f, 1f, -2f),
-            new Vector3[] { new Vector3(-4f, 0f, -2f), new Vector3(4f, 0f, -2f) },
-            enemyMat, null, 0);
-        Log("Iron/Steel test: anchored cubes + wall + raised/far anchors + 3 loose metal bodies + 2 enemies created.");
+        // Wandering armored enemies (also anchors — Steelpush shoves them). Omitted in the no-NPC
+        // scene for clean physics/locomotion testing.
+        if (withNpcs)
+        {
+            Material enemyMat = CreateMetalMaterial("ISEnemyMat", new Color(0.82f, 0.30f, 0.26f, 1f));
+            CreateEnemy("ISEnemy_A", new Vector3(3f, 1f, 3f),
+                new Vector3[] { new Vector3(3f, 0f, 3f), new Vector3(-3f, 0f, 3f), new Vector3(0f, 0f, 7f) },
+                enemyMat, null, 0);
+            CreateEnemy("ISEnemy_B", new Vector3(-4f, 1f, -2f),
+                new Vector3[] { new Vector3(-4f, 0f, -2f), new Vector3(4f, 0f, -2f) },
+                enemyMat, null, 0);
+        }
+        Log(withNpcs
+            ? "Iron/Steel test: anchored cubes + wall + raised/far anchors + launch plate + 3 loose metal bodies + 2 enemies created."
+            : "Iron/Steel test: anchored cubes + wall + raised/far anchors + launch plate + 3 loose metal bodies created (no NPCs).");
 
+        string enemyCue = withNpcs ? " (and the armored enemies)" : "";
         // Step-by-step tutorial (freezes the world while teaching, advances on each action).
         BuildTutorial("Iron & Steel — Push / Pull on Metal", new TutorialOverlay.TutorialStep[] {
-            S("Iron & Steel — push/pull on METAL. The shiny metallic cubes (and the armored enemies) are anchors; a sight line shows your target. Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
+            S("Iron & Steel — push/pull on METAL. The shiny metallic cubes" + enemyCue + " are anchors. While burning, blue sight lines show every metal in range — the THICKEST line points to the NEAREST metal (your default target). Press TAB (or Share) to open the metal wheel.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Steel (slot 2) or press 2 — let's push first.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Steel),
             S("Close the wheel (Esc or click) if it's open, then press B to burn Steel.", TutorialOverlay.TutorialStepType.StartBurning, true),
-            S("Aim at a NAILED grey cube (a blue line marks your target) and HOLD F to Steelpush — it won't move; YOU launch off it (full recoil). The arena is live now.", TutorialOverlay.TutorialStepType.PushOrPull, false),
-            S("Now push a COPPER cube — those are LOOSE (not nailed). The small coin flies off and barely moves you; the big heavy block barely budges and shoves YOU back. Same force, lighter body moves more — Newton's third law.", TutorialOverlay.TutorialStepType.PushOrPull, false),
+            S("The thickest blue line marks the NEAREST metal — that's your target. HOLD LEFT MOUSE to Steelpush it. A NAILED grey cube won't move; YOU launch off it (full recoil). The arena is live now.", TutorialOverlay.TutorialStepType.PushOrPull, false),
+            S("HOLD RIGHT MOUSE while pushing to FLARE (burn harder — stronger push, faster drain). HOLD MIDDLE MOUSE to freeze time and pick a DIFFERENT metal as your target (move the mouse onto it, release to lock).", TutorialOverlay.TutorialStepType.PushOrPull, false),
+            S("Now push a COPPER cube — those are LOOSE. The small coin flies off and barely moves you; the heavy block barely budges and shoves YOU back. Same force, lighter body moves more — Newton's third law. Then try the LAUNCH PLATE: stand on the flat metal plate, jump, and hold LMB pushing straight DOWN to launch upward.", TutorialOverlay.TutorialStepType.PushOrPull, false),
             S("Nice. Now let's pull. Press TAB (or Share) to switch metals.", TutorialOverlay.TutorialStepType.OpenWheel, true),
             S("Click Iron (slot 1) or press 1.", TutorialOverlay.TutorialStepType.SelectMetal, true, metal: MetalType.Iron),
             S("Press B to burn Iron.", TutorialOverlay.TutorialStepType.StartBurning, true),
-            S("Aim at an anchor (a gold line marks your target) and HOLD Q to Ironpull — yank toward it (or yank a loose coin back to you).", TutorialOverlay.TutorialStepType.PushOrPull, false),
-            FinishStep("Heavier anchors reach farther; loose metal is a mass-split (lighter body moves more); shoving an enemy recoils you too; hold R to flare. Tutorial complete — press Enter (or Dpad↓) when you're done exploring."),
+            S("The nearest metal is your target (gold line). HOLD LEFT MOUSE to Ironpull — yank toward it (or yank a loose coin back to you).", TutorialOverlay.TutorialStepType.PushOrPull, false),
+            FinishStep("Heavier anchors reach farther; loose metal is a mass-split (lighter body moves more); LMB = push/pull, RMB = flare, MMB = freeze-aim" + (withNpcs ? "; shoving an enemy recoils you too" : "") + ". Tutorial complete — press Enter (or Dpad↓) when you're done exploring."),
         });
         Log("Iron/Steel test: tutorial created.");
     }
@@ -937,69 +1016,176 @@ public static class RPGSceneBuilder
         Log("Copper/Bronze test: tutorial created.");
     }
 
+    [MenuItem("RPG/Build All-Metals Sandbox")]
+    public static void BuildAllMetalsSandbox()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            Debug.LogError("[RPGBuilder] Cannot build while in Play mode. Exit Play Mode first, then run RPG → Build All-Metals Sandbox.");
+            return;
+        }
+        Log("Starting All-Metals Sandbox build...");
+        if (!Directory.Exists(SETTINGS_DIR)) AssetDatabase.CreateFolder("Assets", "Settings");
+        if (!Directory.Exists("Assets/Scenes")) AssetDatabase.CreateFolder("Assets", "Scenes");
+
+        SetupURP();
+        EnsureRightStickAxes();
+        Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+        BuildPlayerCore(out GameObject player, out _, out Transform hudCanvas,
+                        out _, out _, out Light dirLight);
+        BuildPlayerSystems(player, hudCanvas, out Inventory inventory,
+                           out ItemSO iron, out ItemSO steel, out ItemSO pewter);
+        BuildAllomancy(player, hudCanvas, inventory, iron, steel, pewter);
+        BuildAllMetalsSandboxContent(player, hudCanvas, dirLight);
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene, ALLMETALS_SANDBOX_PATH);
+        Log($"Scene saved: {ALLMETALS_SANDBOX_PATH}");
+        AddToBuildSettings(ALLMETALS_SANDBOX_PATH);
+
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Log("All-Metals Sandbox complete. One arena to test every metal until the real game start is ready. " +
+            "Iron/Steel anchors + launch plate + loose metal at spawn; Tin alcove + light hazard north; " +
+            "Pewter gap + dummy east; Copper/Bronze thugs west; Zinc/Brass enemy ring south. " +
+            "Tab opens the burn-set wheel (click metals, Tab to apply); B pauses/resumes; the flare ring shows what's burning.");
+    }
+
+    /// <summary>One consolidated arena concatenating each metal's test props into separate zones, so
+    /// every allomantic metal can be exercised in one scene (until the real game start exists). No
+    /// per-metal tutorials — free testing. Single warm-ash ambient (the Tin alcove is a walled
+    /// enclosure rather than a globally pitch arena, so Tin night-vision is subtler but the
+    /// bright-light overload + pierce-wall scent tests still work).</summary>
+    static void BuildAllMetalsSandboxContent(GameObject player, Transform hudCanvas, Light dirLight)
+    {
+        Material anchorMat = CreateMetalMaterial("AnchorMat", new Color(0.78f, 0.80f, 0.84f, 1f));
+        Material looseMat  = CreateMetalMaterial("LooseMetalMat", new Color(0.86f, 0.55f, 0.34f, 1f));
+        Material wallMat   = CreateLitMaterial("SandboxWallMat", new Color(0.40f, 0.42f, 0.46f, 1f));
+        Material platformMat = CreateLitMaterial("SandboxPlatformMat", new Color(0.35f, 0.35f, 0.40f, 1f));
+        Material enemyMat  = CreateLitMaterial("SandboxEnemyMat", new Color(0.8f, 0.2f, 0.2f, 1f));
+        Material thugMat   = CreateLitMaterial("SandboxThugMat", new Color(0.7f, 0.25f, 0.15f, 1f));
+        Material glowMat   = CreateLitMaterial("SandboxGlowMat", new Color(1f, 0.95f, 0.6f, 1f));
+
+        // ── Iron/Steel zone (spawn): anchors + launch plate + loose metal (Newton's-3rd-law demo).
+        MakeAnchor("Anchor_Wall", new Vector3(0f, 2f, -6f), new Vector3(8f, 4f, 0.5f), anchorMat);
+        MakeAnchor("Anchor_A", new Vector3(6f, 0.5f, 4f), new Vector3(1f, 1f, 1f), anchorMat);
+        MakeAnchor("Anchor_B", new Vector3(-6f, 0.5f, 5f), new Vector3(1f, 1f, 1f), anchorMat);
+        MakeAnchor("Anchor_C", new Vector3(0f, 0.5f, 10f), new Vector3(1.2f, 1.2f, 1.2f), anchorMat);
+        MakeCube("Pillar", new Vector3(10f, 1f, -4f), new Vector3(2f, 2f, 2f), wallMat);
+        MakeAnchor("Anchor_High", new Vector3(10f, 2.6f, -4f), new Vector3(1f, 1f, 1f), anchorMat);
+        MakeAnchor("Anchor_LaunchPlate", new Vector3(0f, 0.10f, 0f), new Vector3(4f, 0.2f, 4f), anchorMat);
+        MakeLooseAnchor("LooseCoin",  new Vector3( 2.5f, 0.20f, 6f), new Vector3(0.40f, 0.40f, 0.40f), looseMat, 0.20f);
+        MakeLooseAnchor("LooseCrate", new Vector3(-2.5f, 0.40f, 6f), new Vector3(0.80f, 0.80f, 0.80f), looseMat, 1.00f);
+        MakeLooseAnchor("LooseBlock", new Vector3( 0.0f, 0.75f, 9f), new Vector3(1.50f, 1.50f, 1.50f), looseMat, 20.0f);
+
+        // ── Tin zone (north, z=+30): walled alcove (scent/vibration pierce walls) + bright-light
+        //    hazard (SensorySource overload trigger).
+        Vector3 tz = new Vector3(0f, 0f, 30f);
+        MakeCube("TinWall_N", new Vector3(tz.x, 1.5f, tz.z + 6f),  new Vector3(14f, 3f, 0.5f), wallMat);
+        MakeCube("TinWall_S", new Vector3(tz.x, 1.5f, tz.z - 6f),  new Vector3(14f, 3f, 0.5f), wallMat);
+        MakeCube("TinWall_E", new Vector3(tz.x + 7f, 1.5f, tz.z),  new Vector3(0.5f, 3f, 12f), wallMat);
+        MakeCube("TinWall_W", new Vector3(tz.x - 7f, 1.5f, tz.z),  new Vector3(0.5f, 3f, 12f), wallMat);
+        CreateEnemy("TinAlcoveEnemy", new Vector3(tz.x + 3f, 1f, tz.z + 2f),
+            new Vector3[] { new Vector3(tz.x + 3f, 0f, tz.z + 2f), new Vector3(tz.x - 3f, 0f, tz.z - 2f) },
+            enemyMat, null, 0);
+        GameObject hazard = MakeCube("TinBrightHazard", new Vector3(tz.x, 0.5f, tz.z), new Vector3(1f, 1f, 1f), glowMat);
+        Light point = new GameObject("TinHazardLight").AddComponent<Light>();
+        point.type = LightType.Point; point.range = 10f; point.intensity = 3f;
+        point.color = new Color(1f, 0.95f, 0.6f, 1f);
+        point.transform.position = new Vector3(tz.x, 1.2f, tz.z);
+        SensorySource src = hazard.AddComponent<SensorySource>();
+        src.type = SensorySource.SourceType.BrightLight;
+        src.intensity = 1f; src.radius = 8f; src.falloff = 1f;
+
+        // ── Pewter zone (east, x=+30): platform gap (clearable only with Pewter jump) + damage dummy.
+        Vector3 pz = new Vector3(30f, 0f, 0f);
+        MakeCube("PewterPlatformA", new Vector3(pz.x - 3.25f, 0.75f, pz.z), new Vector3(2f, 1.5f, 4f), platformMat);
+        MakeCube("PewterPlatformB", new Vector3(pz.x + 3.25f, 0.75f, pz.z), new Vector3(2f, 1.5f, 4f), platformMat);
+        MakeCube("PewterHighLedge",  new Vector3(pz.x + 7.5f,  1.5f,  pz.z), new Vector3(2f, 3f, 4f), platformMat);
+        Enemy dummy = CreateEnemy("PewterDamageDummy", new Vector3(pz.x - 3.25f, 1f, pz.z - 1.5f),
+            new Vector3[0], enemyMat, null, 0);
+        SetField(dummy, "detectRange", 0.01f);
+        Health dummyHp = dummy.gameObject.GetComponent<Health>();
+        if (dummyHp != null) SetField(dummyHp, "maxHealth", 500);
+
+        // ── Copper/Bronze zone (west, x=-30): 2 Pewter-thug allomancer enemies (Bronze senses,
+        //    Copper suppresses) + 1 normal grunt for contrast.
+        Vector3 cz = new Vector3(-30f, 0f, 0f);
+        CreateEnemy("SandboxThug_A", new Vector3(cz.x, 1f, 6f),
+            new Vector3[] { new Vector3(cz.x, 0f, 6f), new Vector3(cz.x + 4f, 0f, 6f), new Vector3(cz.x + 2f, 0f, 10f) },
+            thugMat, null, 0, allomancer: true);
+        CreateEnemy("SandboxThug_B", new Vector3(cz.x, 1f, -6f),
+            new Vector3[] { new Vector3(cz.x, 0f, -6f), new Vector3(cz.x - 4f, 0f, -6f), new Vector3(cz.x - 2f, 0f, -10f) },
+            thugMat, null, 0, allomancer: true);
+        CreateEnemy("SandboxGrunt", new Vector3(cz.x, 1f, 0f),
+            new Vector3[] { new Vector3(cz.x, 0f, 0f), new Vector3(cz.x + 3f, 0f, 3f), new Vector3(cz.x - 3f, 0f, -3f) },
+            enemyMat, null, 0);
+
+        // ── Zinc/Brass zone (south, z=-30): 4 enemies ringed just outside detect range (Brass soothes
+        //    them, Zinc riots them into a swarm) + low markers showing the ring.
+        Vector3 zz = new Vector3(0f, 0f, -30f);
+        CreateEnemy("ZBEnemy_N", new Vector3(zz.x, 1f, zz.z + 12f),
+            new Vector3[] { new Vector3(zz.x - 2f, 0f, zz.z + 12f), new Vector3(zz.x + 2f, 0f, zz.z + 12f) }, enemyMat, null, 0);
+        CreateEnemy("ZBEnemy_S", new Vector3(zz.x, 1f, zz.z - 12f),
+            new Vector3[] { new Vector3(zz.x + 2f, 0f, zz.z - 12f), new Vector3(zz.x - 2f, 0f, zz.z - 12f) }, enemyMat, null, 0);
+        CreateEnemy("ZBEnemy_E", new Vector3(zz.x + 12f, 1f, zz.z),
+            new Vector3[] { new Vector3(zz.x + 12f, 0f, zz.z - 2f), new Vector3(zz.x + 12f, 0f, zz.z + 2f) }, enemyMat, null, 0);
+        CreateEnemy("ZBEnemy_W", new Vector3(zz.x - 12f, 1f, zz.z),
+            new Vector3[] { new Vector3(zz.x - 12f, 0f, zz.z + 2f), new Vector3(zz.x - 12f, 0f, zz.z - 2f) }, enemyMat, null, 0);
+        MakeCube("ZBMarker_N", new Vector3(zz.x, 0.25f, zz.z + 10f), new Vector3(8f, 0.5f, 0.3f), wallMat);
+        MakeCube("ZBMarker_S", new Vector3(zz.x, 0.25f, zz.z - 10f), new Vector3(8f, 0.5f, 0.3f), wallMat);
+        MakeCube("ZBMarker_E", new Vector3(zz.x + 10f, 0.25f, zz.z), new Vector3(0.3f, 0.5f, 8f), wallMat);
+        MakeCube("ZBMarker_W", new Vector3(zz.x - 10f, 0.25f, zz.z), new Vector3(0.3f, 0.5f, 8f), wallMat);
+
+        Log("All-Metals Sandbox: Iron/Steel + Tin + Pewter + Copper/Bronze + Zinc/Brass zones created (no tutorials).");
+    }
+
     static void BuildAllomancy(GameObject player, Transform hudCanvas, Inventory inventory, ItemSO iron, ItemSO steel, ItemSO pewter)
     {
-        // ---- Compact HUD panel (bottom-left): active metal name + reserve bar + % ----
-        GameObject panel = new GameObject("AllomancyHUD");
-        panel.transform.SetParent(hudCanvas, false);
-        RectTransform prt = panel.AddComponent<RectTransform>();
-        prt.anchorMin = new Vector2(0f, 0f);
-        prt.anchorMax = new Vector2(0f, 0f);
-        prt.pivot = new Vector2(0f, 0f);
-        prt.sizeDelta = new Vector2(320f, 60f);
-        prt.anchoredPosition = new Vector2(16f, 16f);
-        Image pbg = panel.AddComponent<Image>();
-        pbg.color = new Color(0f, 0f, 0f, 0.45f);
-
-        // Name (top-left) + percent (top-right)
-        Text nameText = MakeText(panel.transform, "MetalName",
-            new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(12f, -6f), new Vector2(210f, 22f), 16, TextAnchor.UpperLeft);
-        nameText.color = new Color(1f, 0.9f, 0.5f);
-        Text pctText = MakeText(panel.transform, "MetalPct",
-            new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f),
-            new Vector2(-12f, -6f), new Vector2(90f, 22f), 16, TextAnchor.UpperRight);
-        pctText.color = Color.white;
-
-        // Reserve bar (below the name row): bg + fill (anchorMax.x driven by the HUD)
-        GameObject barBg = new GameObject("ReserveBarBg");
-        barBg.transform.SetParent(panel.transform, false);
-        RectTransform barBgRT = barBg.AddComponent<RectTransform>();
-        barBgRT.anchorMin = new Vector2(0f, 1f);
-        barBgRT.anchorMax = new Vector2(1f, 1f);
-        barBgRT.pivot = new Vector2(0.5f, 1f);
-        barBgRT.sizeDelta = new Vector2(-24f, 16f);
-        barBgRT.anchoredPosition = new Vector2(0f, -30f);
-        Image barBgImg = barBg.AddComponent<Image>();
-        barBgImg.color = new Color(0f, 0f, 0f, 0.6f);
-
-        GameObject fill = new GameObject("ReserveFill");
-        fill.transform.SetParent(barBg.transform, false);
-        RectTransform fillRT = fill.AddComponent<RectTransform>();
-        fillRT.anchorMin = Vector2.zero;
-        fillRT.anchorMax = Vector2.one;
-        fillRT.pivot = new Vector2(0f, 0.5f);
-        fillRT.offsetMin = Vector2.zero;
-        fillRT.offsetMax = Vector2.zero;
-        Image fillImg = fill.AddComponent<Image>();
-        fillImg.color = Color.white;
-
-        AllomancyHUD hud = panel.AddComponent<AllomancyHUD>();
-        SetField(hud, "reserveFill", fillRT);
-        SetField(hud, "nameText", nameText);
-        SetField(hud, "pctText", pctText);
-
         // ---- Allomancer on the player ----
         Allomancer allomancer = player.AddComponent<Allomancer>();
         SetField(allomancer, "inventory", inventory);
-        SetField(allomancer, "hud", hud);
 
-        // metalItems indexed by (int)MetalType: Iron=0, Steel=1, Pewter=2 (others null → not drinkable yet)
+        // metalItems indexed by (int)MetalType. Iron/Steel/Pewter come from BuildPlayerSystems; the
+        // other 5 basic metals are created here so EVERY metal is drinkable/testable (the all-metals
+        // sandbox needs all of them). CreateItem is idempotent (reuses existing assets).
         ItemSO[] metalItems = new ItemSO[Metals.Count];
         metalItems[(int)MetalType.Iron] = iron;
         metalItems[(int)MetalType.Steel] = steel;
         metalItems[(int)MetalType.Pewter] = pewter;
+        metalItems[(int)MetalType.Tin]     = CreateItem("Tin",     "tin",     "Tin",     ItemCategory.Metal, maxStack: 99);
+        metalItems[(int)MetalType.Copper] = CreateItem("Copper",   "copper",  "Copper",  ItemCategory.Metal, maxStack: 99);
+        metalItems[(int)MetalType.Bronze] = CreateItem("Bronze",   "bronze",  "Bronze",  ItemCategory.Metal, maxStack: 99);
+        metalItems[(int)MetalType.Zinc]   = CreateItem("Zinc",     "zinc",    "Zinc",    ItemCategory.Metal, maxStack: 99);
+        metalItems[(int)MetalType.Brass]  = CreateItem("Brass",    "brass",   "Brass",   ItemCategory.Metal, maxStack: 99);
         SetField(allomancer, "metalItems", metalItems);
+
+        // ---- UI Toolkit allomancy HUD: the always-on metal ring (Ashwalker's MetalRingVisual —
+        // smooth Painter2D arcs) with the flare wheel (Ashwalker's FlareIntensityHUD — 10 radial arc
+        // segments orbiting it). One UIDocument (screen-space overlay, no camera needed); MetalRingDriver
+        // builds the bottom-left "MetalRingContainer" + ring in OnEnable; FlareIntensityHUD injects its
+        // segments into that container in Start. Every VisualElement sets pickingMode=Ignore so the
+        // panel never swallows clicks meant for ugui (inventory/dialogue/wheel). ----
+        PanelSettings panelSettings = EnsurePanelSettings();
+        GameObject uitkGO = new GameObject("AllomancyUIDocument");
+        UIDocument uidoc = uitkGO.AddComponent<UIDocument>();
+        uidoc.panelSettings = panelSettings;
+        uidoc.visualTreeAsset = null;     // populated purely in code by MetalRingDriver
+
+        MetalRingDriver ringDriver = uitkGO.AddComponent<MetalRingDriver>();
+        SetField(ringDriver, "uiDocument", uidoc);
+        SetField(ringDriver, "allomancer", allomancer);
+
+        FlareIntensityHUD flareHUD = uitkGO.AddComponent<FlareIntensityHUD>();
+        SetField(flareHUD, "uiDocument", uidoc);     // pre-wire so Start's auto-find scan is skipped
+        SetField(flareHUD, "allomancer", allomancer);
+
+        // NOTE: the old 16-metal "all-at-once" reserve bar stack (MetallurgyHUD) is intentionally
+        // GONE — the user disliked every metal showing simultaneously. What's currently burning
+        // (one arc per burning metal, with its reserve fill) is shown instead by the MetalRingDriver
+        // ring above + the FlareIntensityHUD flare ticks; which metals to burn is chosen in the Tab
+        // MetalWheel. So there's no per-metal bar panel here anymore.
 
         // ---- Radial metal wheel (Tab) — builds its own canvas/mist/slots in Awake ----
         MetalWheel wheel = player.AddComponent<MetalWheel>();
@@ -1024,11 +1210,15 @@ public static class RPGSceneBuilder
         SetField(tin, "playerCamera", cam);
         SetField(tin, "shake", shake);
 
-        // ---- Iron/Steel effect (Steelpush F / Ironpull Q against metal anchors) ----
+        // ---- Iron/Steel effect (Steelpush / Ironpull against metal anchors; hold LMB) ----
         IronSteel ironSteel = player.AddComponent<IronSteel>();
         SetField(ironSteel, "allomancer", allomancer);
         SetField(ironSteel, "mover", player.GetComponent<PlayerController>());
         SetField(ironSteel, "playerCamera", cam);
+
+        // Wire the Allomancer into combat so LMB/RMB yield to push/pull + flare while Iron/Steel
+        // burns (the contextual control scheme); otherwise LMB=attack / RMB=block as usual.
+        SetField(player.GetComponent<PlayerCombat>(), "allomancer", allomancer);
 
         // ---- Zinc/Brass effect (Riot/Soothe enemy-emotion aura; passive while burning) ----
         ZincBrass zincBrass = player.AddComponent<ZincBrass>();
@@ -1040,9 +1230,16 @@ public static class RPGSceneBuilder
         Bronze bronze = player.AddComponent<Bronze>();
         SetField(bronze, "allomancer", allomancer);
 
-        // Starter fuel so drinking is testable immediately.
+        // Starter fuel so drinking is testable immediately. Seed every basic metal so all are
+        // drinkable out of the gate (the all-metals sandbox — and every test scene — can refill any).
         inventory.Add(pewter, 3);
         inventory.Add(iron, 2);
+        inventory.Add(metalItems[(int)MetalType.Steel],  2);
+        inventory.Add(metalItems[(int)MetalType.Tin],    2);
+        inventory.Add(metalItems[(int)MetalType.Copper], 2);
+        inventory.Add(metalItems[(int)MetalType.Bronze], 2);
+        inventory.Add(metalItems[(int)MetalType.Zinc],   2);
+        inventory.Add(metalItems[(int)MetalType.Brass],  2);
 
         // ---- Save / load (F5 / F9) — persists player state to persistentDataPath/save.json ----
         SaveSystem save = player.AddComponent<SaveSystem>();

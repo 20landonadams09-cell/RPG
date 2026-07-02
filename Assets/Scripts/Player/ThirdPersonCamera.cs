@@ -19,6 +19,17 @@ namespace BasicRPG.Player
         [SerializeField] private float pitchMax = 60f;
         [SerializeField] private float followSmooth = 10f;
 
+        [Header("First Person (Tin enhanced senses)")]
+        [Tooltip("Eye height above the target root when in first person (Vin ≈ 2u tall).")]
+        [SerializeField] private float firstPersonEyeHeight = 1.7f;
+        [SerializeField] private float pitchMinFP = -80f;
+        [SerializeField] private float pitchMaxFP = 80f;
+
+        // When true, the camera sits at the player's eyes and free-looks (Tin burning).
+        // The player body's renderers are hidden so the camera doesn't see inside its
+        // own head, but LineRenderers (the allomancy blue-line mental cue) stay visible.
+        private bool firstPerson;
+
         private float yaw;
         private float pitch = 20f;
 
@@ -44,17 +55,50 @@ namespace BasicRPG.Player
                        + Input.GetAxis("RightStickX") * padSensitivity;
                 pitch -= Input.GetAxis("Mouse Y") * mouseSensitivity
                          + Input.GetAxis("RightStickY") * padSensitivity;
-                pitch = Mathf.Clamp(pitch, pitchMin, pitchMax);
+                pitch = Mathf.Clamp(pitch, firstPerson ? pitchMinFP : pitchMin,
+                                          firstPerson ? pitchMaxFP : pitchMax);
             }
 
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-            Vector3 targetPos = target.position + Vector3.up * height;
-            Vector3 desiredPos = targetPos - (rotation * Vector3.forward * distance);
 
-            transform.position = Vector3.Lerp(transform.position, desiredPos, followSmooth * Time.deltaTime);
-            transform.LookAt(targetPos);
+            if (firstPerson)
+            {
+                // Sit at the player's eyes and look along the orbit yaw/pitch (free-look).
+                Vector3 eye = target.position + Vector3.up * firstPersonEyeHeight;
+                transform.position = Vector3.Lerp(transform.position, eye, followSmooth * Time.deltaTime);
+                transform.rotation = Quaternion.Slerp(transform.rotation, rotation, followSmooth * Time.deltaTime);
+            }
+            else
+            {
+                Vector3 targetPos = target.position + Vector3.up * height;
+                Vector3 desiredPos = targetPos - (rotation * Vector3.forward * distance);
+
+                transform.position = Vector3.Lerp(transform.position, desiredPos, followSmooth * Time.deltaTime);
+                transform.LookAt(targetPos);
+            }
         }
 
-        public void SetTarget(Transform t) => target = t;
+        public void SetTarget(Transform t)
+        {
+            target = t;
+            UpdateBodyVisibility();
+        }
+
+        /// <summary>Switch between third-person orbit (false) and first-person eyes (true).
+        /// Used by Tin: burning tin (enhanced senses) → first person; stop → third person.</summary>
+        public void SetFirstPerson(bool on)
+        {
+            firstPerson = on;
+            UpdateBodyVisibility();
+        }
+
+        // Hide the player body's renderers in first person so the camera doesn't look
+        // through its own head; keep LineRenderers (allomancy blue lines) visible.
+        void UpdateBodyVisibility()
+        {
+            if (target == null) return;
+            foreach (var r in target.GetComponentsInChildren<Renderer>())
+                if (!(r is LineRenderer)) r.enabled = !firstPerson;
+        }
     }
 }

@@ -49,14 +49,34 @@ Press the **▶ Play** button at the top.
 | Tab | Open metal wheel (time freezes; click a metal to select, Esc to cancel) |
 | E | Interact (talk / open / take) |
 | I | Toggle inventory |
-| Left Mouse | Melee attack |
-| Right Mouse (hold) | Block |
+| Left Mouse | Melee attack **— OR —** click+hold to push/pull the nearest metal (while Iron/Steel burning). **Double-click then hold** = "bubble" (push/pull ALL in-range metals) |
+| Right Mouse (hold) | Block (all metals, including while burning Iron/Steel) |
+| Middle Mouse (hold) | Freeze time and pick a metal target (while Iron/Steel is burning) |
+| Scroll Wheel | Flare intensity 1–10 (the "flare wheel") — scroll up to flare harder, down to ease off (while burning) |
 | C | Dodge |
 | B | Toggle burning the active metal |
 | 1 – 8 | Select active metal |
-| F (hold) | Steelpush (launch off a metal anchor; Steel burning) |
-| Q (hold) | Ironpull (yank toward a metal anchor; Iron burning) |
-| R (hold) | Flare (burn harder) |
+| F (hold) | Steelpush — alternate to Left Mouse (Steel burning) |
+| Q (hold) | Ironpull — alternate to Left Mouse (Iron burning) |
+| R (hold) | Flare to max (jump to the top flare step while held) — universal, for any metal |
+
+> **Iron/Steel contextual mouse:** while you're **burning Iron or Steel**, **LMB hold = push (Steel)
+> / pull (Iron)** and **MMB hold = freeze time and pick a target**; LMB melee is paused. **RMB
+> still blocks** (block works for every metal now), and **flaring is done with the scroll wheel** —
+> scroll up/down to set flare intensity 1–10 (the "flare wheel"), or **hold R / Options** to jump
+> straight to max flare. When you stop burning (toggle **B**), LMB goes back to attack. **F/Q** stay
+> as keyboard alternates to LMB. Burning ≠ flaring — **B** is the efficient standard burn (intensity
+> 1); the scroll wheel flares — the accelerated, faster-draining boost (up to intensity 10).
+>
+> **Targeting:** a single **click + hold LMB** pushes/pulls the **NEAREST** metal (the closest one
+> to you — the one with the thickest blue line). To affect **every** in-range metal at once, do a
+> quick **double-click then hold LMB** — a "bubble" that pushes/pulls them all simultaneously (each
+> gets the equal force; you take the combined recoil, which partially cancels across metals in
+> different directions). Hold **MMB** to freeze time and lock a specific metal when several are
+> close together (the lock is the bright target line even if it isn't the nearest). The thickest
+> blue line always points to the **nearest** metal (a nearness cue); the **colour** tells you which
+> one is your target — and in a bubble, every line turns the target colour. (A look-to-target
+> aiming system is planned for later; for now it's nearest + bubble.)
 | X | Drink a metal (refill reserve) |
 | F5 / F9 | Save / Load |
 
@@ -82,12 +102,12 @@ of the screen (out of the way of the action).
 | Circle ○ | Dodge |
 | Square □ | Interact |
 | Triangle △ | Toggle burning |
-| L1 (hold) | Block |
+| L1 (hold) | Block — OR — freeze-aim a metal target (while Iron/Steel burning) |
 | R1 | Attack |
 | L2 (hold) | Ironpull |
 | R2 (hold) | Steelpush |
 | Share | Open/close metal wheel |
-| Options (hold) | Flare |
+| Options (hold) | Flare to max (gamepad has no scroll wheel — hold Options to jump to max flare) |
 | L3 (hold) | Sprint |
 | R3 (click) | Toggle inventory |
 | Dpad Up | Drink a metal |
@@ -111,8 +131,8 @@ metals are shown greyed/locked — they're part of the framework but their effec
 ### Basic metals (burnable)
 | Metal | Allomantic effect (in-game) | Keys |
 |-------|------------------------------|------|
-| **Iron** | **Ironpull** — yank yourself toward a nearby metal anchor | hold **Q / L2** (Iron burning) |
-| **Steel** | **Steelpush** — launch yourself off a nearby metal anchor | hold **F / R2** (Steel burning) |
+| **Iron** | **Ironpull** — yank yourself toward a nearby metal anchor | hold **LMB / L2** (Iron burning; Q alt) |
+| **Steel** | **Steelpush** — launch yourself off a nearby metal anchor | hold **LMB / R2** (Steel burning; F alt) |
 | **Pewter** | **Physical enhancement** — hits harder, runs/jumps farther, tanks hits, mends. Burn too long then stop → **drag crash** | burn **B / △** |
 | **Tin** | **Enhanced senses** — night vision, hearing, scent pings, tremorsense. Bright light/loud noise → **sensory overload** | burn **B / △** |
 | **Copper** | **Coppercloud** — hide your allomancy and suppress nearby enemy allomancers | burn **B / △** |
@@ -120,8 +140,12 @@ metals are shown greyed/locked — they're part of the framework but their effec
 | **Zinc** | **Riot** — inflame nearby enemies' emotions (hyper-aggressive, they swarm) | burn **B / △** |
 | **Brass** | **Soothe** — dampen nearby enemies' emotions (calm, slow, barely notice you) | burn **B / △** |
 
-> Hold **R / Options** to **flare** (burn harder) — stronger effect, faster drain. **X / Dpad↑**
-> drinks a metal to refill its reserve. **1–8** selects the active basic metal fast.
+> **Flare (burn harder):** scroll the **mouse wheel** while burning to set flare intensity 1–10
+> (the "flare wheel" — a radial HUD lights up orange→red around the metal ring) — stronger
+> effect, faster drain. **Hold R / Options** to jump straight to max flare. **RMB** always blocks
+> (all metals). **X / Dpad↑** drinks a metal to refill its reserve. **1–8** selects the active
+> basic metal fast. **Burning ≠ flaring**: B is the efficient standard burn (intensity 1); flare
+> (scroll wheel) is the accelerated, faster-draining boost (up to intensity 10).
 
 ### Higher metals (locked — framework only for now)
 | Metal | Allomantic effect (lore, not yet implemented) |

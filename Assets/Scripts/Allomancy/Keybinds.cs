@@ -3,9 +3,11 @@ using UnityEngine;
 namespace BasicRPG.Allomancy
 {
     /// <summary>
-    /// Allomancy keybinds for BasicRPG — remapped from Ashwalker's Keybinds.cs to avoid
-    /// conflicts with the existing controls (E=interact, C=dodge, I=inventory, LMB=attack,
-    /// RMB=block). Allomancy uses only B / X / 1–8 / RightAlt, none of which clash.
+    /// Allomancy keybinds for BasicRPG. Burning is a B / △ toggle; flaring is a hold (R for any
+    /// metal, RMB while Iron/Steel is active). Push/pull is hold LMB (or F/Q as alternates) while
+    /// Iron/Steel burns — LMB/RMB are CONTEXTUAL: while burning Iron/Steel, LMB = push/pull and
+    /// RMB = flare (melee attack and block are suppressed by PlayerCombat); otherwise LMB = attack
+    /// and RMB = block as usual. Freeze-time target aim is hold MMB (gamepad: L1, contextual).
     /// </summary>
     public static class Keybinds
     {
@@ -62,9 +64,22 @@ namespace BasicRPG.Allomancy
         public static bool DrinkDown()      => Down(DrinkVial, PadDrink);
         public static bool RefillDown()     => Input.GetKeyDown(RefillAll); // keyboard-only (debug)
         public static bool WheelDown()      => Down(MetalWheel, PadWheel);
-        public static bool PushHeld()       => Held(SteelPush, PadPush);
-        public static bool PullHeld()       => Held(IronPull, PadPull);
+        // Push/pull: hold LMB (the primary binding) while burning Steel/Iron. F/Q remain as
+        // keyboard alternates for accessibility; gamepad uses R2/L2. Only one of Steel/Iron burns
+        // at a time (single active metal), so one LMB triggers whichever is active.
+        public static bool PushHeld()       => Input.GetMouseButton(0) || Held(SteelPush, PadPush);
+        public static bool PullHeld()       => Input.GetMouseButton(0) || Held(IronPull, PadPull);
+        // Flare-to-max: R (any metal) + gamepad Options (hold). While held, Allomancer overrides
+        // FlareMultiplier to its max (the scroll wheel still sets the resting intensity). This is a
+        // hold shortcut — fine intensity 1..maxFlareSteps is set by the scroll wheel (ScrollWheelDelta).
         public static bool FlareHeld()      => Held(Flare, PadFlare);
+        // Scroll-wheel flare intensity (the "flare wheel"): +1 step on scroll up, -1 on scroll down,
+        // 0 when idle. Read in Allomancer.Update while burning. Classic Input Manager axis.
+        public static float ScrollWheelDelta() => Input.GetAxis("Mouse ScrollWheel");
+        // Freeze-time target aim: hold MMB (keyboard) or L1 (gamepad, contextual — while burning
+        // Iron/Steel L1 = aim instead of block).
+        public static bool AimHeld()        => Input.GetMouseButton(2)
+            || (PadBlock != KeyCode.None && Input.GetKey(PadBlock));
         public static bool SaveDown()       => Down(SaveGame, PadSave);
         public static bool LoadDown()       => Down(LoadGame, PadLoad);
         public static bool SprintHeld()     => Held(KeyCode.LeftShift, PadSprint);
