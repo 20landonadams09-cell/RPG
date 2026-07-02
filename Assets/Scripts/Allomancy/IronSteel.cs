@@ -200,9 +200,11 @@ namespace BasicRPG.Allomancy
                  "metal of this mass (with a `hoverReferencePlayerMass` Mistborn) hovers at `hoverHeightAtFullFlare`. " +
                  "One of the two reference masses the proof's Remark says to pick ('determine one of k, m_metal, or B " +
                  "given the other two'); the actual equilibrium still uses the LIVE anchor mass, so heavier/lighter " +
-                 "anchors hover higher/lower. DEFAULT 21 ≈ the mass that makes the project's force balance yield 30 m " +
-                 "at full flare (k=134.3, M=1 kg, g=9.81, maxFlare=3.2).")]
-        public float hoverReferenceAnchorMass = 21f;
+                 "anchors hover higher/lower. DEFAULT 1 = the `MetalAnchor.mass` default that `MakeAnchor` uses for " +
+                 "every anchored anchor (wall/plate/cube), so the canon 30 m hover reproduces off the actual sandbox " +
+                 "anchors. (Bumping the anchor masses themselves is NOT an option — F ∝ m_metal, so heavier anchors " +
+                 "would also ~N×-scale every launch impulse and break the tuned launch feel.)")]
+        public float hoverReferenceAnchorMass = 1f;
         [Tooltip("Reference Mistborn mass (kg) for the hover calibration — the player mass at which a full-flare push " +
                  "off a `hoverReferenceAnchorMass` metal hovers at `hoverHeightAtFullFlare`. Kept FIXED when deriving " +
                  "k_hover (NOT the live player mass), so a heavier Mistborn correctly hovers LOWER per canon (weight " +
@@ -1059,7 +1061,14 @@ namespace BasicRPG.Allomancy
             // metal is the immovable ground reference). Still drains Steel (sustained hover burns the
             // metal). Angled pushes (r̂.y ≥ -hoverConeMinBelow) and Ironpull fall through to the impulse
             // launch/arc below (a below-metal pull is DOWN, never a hover).
-            if (wantPush && anchored && rHat.y < -hoverConeMinBelow)
+            //
+            // AIRBORNE gate (canon + fixes the LaunchPlate): hover is an AIRBORNE sustained push — you
+            // launch off the ground first, then sustain-hover once up. So this requires !isGrounded: a
+            // grounded straight-down push (e.g. standing on the Anchor_LaunchPlate and pushing it) gets
+            // the LAUNCH impulse below instead of being hijacked into a hover. The launch puts you
+            // airborne; next frame isGrounded flips false and the sustained push engages the hover.
+            if (wantPush && anchored && rHat.y < -hoverConeMinBelow
+                && playerCC != null && !playerCC.isGrounded)
             {
                 float maxB    = Mathf.Max(allomancer.maxFlareMultiplier, 0.0001f);
                 float M       = Mathf.Max(m_mistborn, 0.05f);                          // LIVE Mistborn mass (canon: weight affects flight)
