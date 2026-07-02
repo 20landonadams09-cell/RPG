@@ -231,7 +231,10 @@ namespace BasicRPG.TitleScreen
             lineMat = new Material(sh);
             lineMat.color = Color.white; // line tint comes from start/end color, not the material
 
-            // First pass: measure total width so the row is centred at x=0 in strokeRoot space.
+            // First pass: measure total width (in WORLD units) so the row is centred at x=0.
+            // NOTE: letter widths from GetLetterStrokes are NORMALIZED (0..1 of cap height), so
+            // they must be scaled by `letterHeight` before summing — mixing normalized widths with
+            // the world-unit gap term below was the off-center bug (the row sat shifted right).
             List<Vector2[][]> letterStrokes = new List<Vector2[][]>();
             List<float> letterWidths = new List<float>();
             float totalWidth = 0f;
@@ -240,7 +243,7 @@ namespace BasicRPG.TitleScreen
                 Vector2[][] ls = GetLetterStrokes(titleString[ci], out float w);
                 letterStrokes.Add(ls);
                 letterWidths.Add(w);
-                totalWidth += w;
+                totalWidth += w * letterHeight;
             }
             totalWidth += letterSpacing * letterHeight * Mathf.Max(0, titleString.Length - 1);
 
@@ -277,8 +280,8 @@ namespace BasicRPG.TitleScreen
                     lr.widthCurve = AnimationCurve.Constant(0f, 1f, lineWidth);
                     lr.startWidth = lineWidth;
                     lr.endWidth = lineWidth;
-                    lr.numCornerVertices = 2;
-                    lr.numCapVertices = 1;
+                    lr.numCornerVertices = 4;   // smooth the joins on curved letters (S/O/B/R bowls)
+                    lr.numCapVertices = 2;
                     lr.positionCount = 0;   // nothing drawn until revealed
                     // Park the full polyline on the renderer (SetStrokeProgress grows positionCount).
                     Stroke st = new Stroke { lr = lr, pts = pts, startX = minX };
@@ -311,35 +314,40 @@ namespace BasicRPG.TitleScreen
             st.lr.SetPosition(count, tip);
         }
 
-        // ── Letter geometry (block-capitals as straight-stroke polylines) ───────────
+        // ── Letter geometry (clean block-capitals as straight-stroke polylines) ──────
         // Each letter lives in a normalized box: x ∈ [0, w] (its advance width), y ∈ [0, 1]
-        // (0 = baseline, 1 = cap). Straight strokes keep the allomancy "steel line" feel.
+        // (0 = baseline, 1 = cap). Bows/bowls are rounded with several short segments; the
+        // LineRenderer's corner vertices smooth the joins. Straight strokes keep the
+        // allomancy "steel line" feel while reading as proper capitals.
 
         static Vector2[][] GetLetterStrokes(char c, out float width)
         {
             switch (c)
             {
-                case 'M': width = 0.75f; return new[] {
-                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0.375f, 0.35f), new Vector2(0.75f, 1f), new Vector2(0.75f, 0f) } };
+                case 'M': width = 0.7f; return new[] {
+                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0.35f, 0.35f), new Vector2(0.7f, 1f), new Vector2(0.7f, 0f) } };
                 case 'I': width = 0.2f; return new[] {
                     new[] { new Vector2(0.1f, 0f), new Vector2(0.1f, 1f) } };
                 case 'S': width = 0.55f; return new[] {
-                    new[] { new Vector2(0.55f, 1f), new Vector2(0f, 0.85f), new Vector2(0f, 0.55f), new Vector2(0.55f, 0.5f), new Vector2(0.55f, 0.2f), new Vector2(0f, 0f) } };
+                    new[] { new Vector2(0.55f, 0.88f), new Vector2(0.45f, 1f), new Vector2(0.15f, 1f), new Vector2(0f, 0.78f), new Vector2(0f, 0.6f),
+                            new Vector2(0.2f, 0.5f), new Vector2(0.45f, 0.48f), new Vector2(0.5f, 0.42f), new Vector2(0.45f, 0.2f), new Vector2(0.15f, 0f), new Vector2(0f, 0.12f) } };
                 case 'T': width = 0.55f; return new[] {
                     new[] { new Vector2(0f, 1f), new Vector2(0.55f, 1f) },
                     new[] { new Vector2(0.275f, 1f), new Vector2(0.275f, 0f) } };
                 case 'B': width = 0.6f; return new[] {
-                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f) },
-                    new[] { new Vector2(0f, 0.52f), new Vector2(0.45f, 0.55f), new Vector2(0.5f, 0.78f), new Vector2(0.15f, 1f), new Vector2(0f, 1f) },
-                    new[] { new Vector2(0f, 0.5f), new Vector2(0.5f, 0.42f), new Vector2(0.55f, 0.15f), new Vector2(0.15f, 0f), new Vector2(0f, 0f) } };
-                case 'O': width = 0.6f; return new[] {
-                    new[] { new Vector2(0.3f, 0f), new Vector2(0.55f, 0f), new Vector2(0.6f, 0.25f), new Vector2(0.6f, 0.75f), new Vector2(0.55f, 1f), new Vector2(0.3f, 1f), new Vector2(0.05f, 1f), new Vector2(0f, 0.75f), new Vector2(0f, 0.25f), new Vector2(0.05f, 0f), new Vector2(0.3f, 0f) } };
+                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f) },                                                                                         // spine
+                    new[] { new Vector2(0f, 1f), new Vector2(0.42f, 1f), new Vector2(0.58f, 0.92f), new Vector2(0.6f, 0.75f), new Vector2(0.55f, 0.58f), new Vector2(0.3f, 0.5f), new Vector2(0f, 0.5f) }, // top bowl
+                    new[] { new Vector2(0f, 0.5f), new Vector2(0.35f, 0.5f), new Vector2(0.58f, 0.42f), new Vector2(0.6f, 0.25f), new Vector2(0.55f, 0.08f), new Vector2(0.3f, 0f), new Vector2(0f, 0f) } }; // bottom bowl
+                case 'O': width = 0.6f; return new[] {   // ellipse centred (0.3, 0.5), rx 0.3, ry 0.5
+                    new[] { new Vector2(0.6f, 0.5f), new Vector2(0.56f, 0.75f), new Vector2(0.45f, 0.93f), new Vector2(0.3f, 1f), new Vector2(0.15f, 0.93f),
+                            new Vector2(0.04f, 0.75f), new Vector2(0f, 0.5f), new Vector2(0.04f, 0.25f), new Vector2(0.15f, 0.07f), new Vector2(0.3f, 0f),
+                            new Vector2(0.45f, 0.07f), new Vector2(0.56f, 0.25f), new Vector2(0.6f, 0.5f) } };
                 case 'R': width = 0.6f; return new[] {
-                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f) },
-                    new[] { new Vector2(0f, 0.55f), new Vector2(0.45f, 0.6f), new Vector2(0.5f, 0.82f), new Vector2(0.15f, 1f), new Vector2(0f, 1f) },
-                    new[] { new Vector2(0.1f, 0.45f), new Vector2(0.4f, 0f), new Vector2(0.6f, 0f) } };
-                case 'N': width = 0.75f; return new[] {
-                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0.75f, 0f), new Vector2(0.75f, 1f) } };
+                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f) },                                                                                         // spine
+                    new[] { new Vector2(0f, 1f), new Vector2(0.42f, 1f), new Vector2(0.58f, 0.92f), new Vector2(0.6f, 0.75f), new Vector2(0.55f, 0.58f), new Vector2(0.3f, 0.5f), new Vector2(0f, 0.5f) }, // top bowl (matches B)
+                    new[] { new Vector2(0.25f, 0.5f), new Vector2(0.45f, 0f), new Vector2(0.6f, 0f) } };                                                          // leg
+                case 'N': width = 0.7f; return new[] {
+                    new[] { new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(0.7f, 0f), new Vector2(0.7f, 1f) } };
                 default: width = 0.3f; return new Vector2[0][]; // unknown → blank slot
             }
         }
