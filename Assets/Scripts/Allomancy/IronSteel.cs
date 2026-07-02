@@ -184,23 +184,31 @@ namespace BasicRPG.Allomancy
         public float looseObjectMaxSpeed = 25f;
 
         [Header("Steelpush hover (anchored, straight-down push → settle at the derived equilibrium)")]
-        [Tooltip("Canon hover height at FULL flare off a `hoverReferenceAnchorMass` metal, in UNITY UNITS. " +
-                 "Used to CALIBRATE the anchored-hover closed form (Allomantic Force Kernel Addendum, Prop 3): " +
-                 "the equilibrium is r_eq = sqrt(k·m_metal·B/(M·g)) − δ, derived from the force balance F(r_eq)=M·g — " +
-                 "NOT a hardcoded hover ceiling. The closed form is normalized so a full-flare push off a " +
-                 "`hoverReferenceAnchorMass` metal settles at this value (~30 m / 39.2 units = Vin's ~100 ft hover; " +
-                 "30 m ÷ AllomancyUnits.MetersPerUnit 0.765). Heavier/lighter anchors then hover proportionally " +
-                 "higher/lower (∝ sqrt(m_metal)) and sub-flare hovers lower (∝ sqrt(flare)), per Prop 3. " +
-                 "Engages only for a near-VERTICAL Steelpush on an ANCHORED metal below the chest " +
-                 "(r̂.y < -hoverConeMinBelow); angled pushes and loose coins keep the launch/arc (Prop 2: no free-body hover).")]
+        [Tooltip("Canon hover height at FULL flare off a `hoverReferenceAnchorMass` metal for a " +
+                 "`hoverReferencePlayerMass` Mistborn, in UNITY UNITS (~30 m / 39.2 units = Vin's ~100 ft hover; " +
+                 "30 m ÷ AllomancyUnits.MetersPerUnit 0.765). This is the CALIBRATION TARGET for the anchored-hover " +
+                 "closed form (Allomantic Force Kernel Addendum, Prop 3): the equilibrium is the closed form " +
+                 "r_eq = sqrt(k_hover·m_metal·B/(M·g)) − δ, derived from the force balance F(r_eq)=M·g — NOT a " +
+                 "hardcoded ceiling. k_hover is derived (once) from this target + the two reference masses so the " +
+                 "closed form reproduces this height at the reference; k_hover is then FIXED, so the LIVE anchor " +
+                 "mass, flare, and Mistborn mass all shift r_eq per canon (heavier anchor → higher, more flare → " +
+                 "higher, heavier Mistborn → lower; r_eq ∝ sqrt(m_metal)·sqrt(B)/sqrt(M)). Engages only for a " +
+                 "near-VERTICAL Steelpush on an ANCHORED metal below the chest (r̂.y < -hoverConeMinBelow); angled " +
+                 "pushes and loose coins keep the launch/arc (Prop 2: no free-body hover).")]
         public float hoverHeightAtFullFlare = 39.2f;   // 30 m in Unity units — Vin's ~100 ft hover (calibration target)
-        [Tooltip("The anchor mass (kg) at which a FULL-FLARE straight-down Steelpush hovers at `hoverHeightAtFullFlare` " +
-                 "(~30 m). This is the calibration constant the proof's Remark says to pick ('determine one of k, " +
-                 "m_metal, or B given the other two'): the closed form r_eq = sqrt(k·m_metal·B/(M·g)) − δ is normalized " +
-                 "by its full-flare value at this mass, so it = the canon target here and scales ∝ sqrt(m_metal)/" +
-                 "sqrt(hoverReferenceAnchorMass) otherwise. DEFAULT 21 ≈ (30 m + δ)²·M·g/(k·maxFlare) for the project's " +
-                 "k=134.3, M=1 kg, g=9.81, maxFlare=3.2 — the mass that makes the force balance yield 30 m at full flare.")]
+        [Tooltip("Reference anchor mass (kg) for the hover calibration — a full-flare straight-down Steelpush off a " +
+                 "metal of this mass (with a `hoverReferencePlayerMass` Mistborn) hovers at `hoverHeightAtFullFlare`. " +
+                 "One of the two reference masses the proof's Remark says to pick ('determine one of k, m_metal, or B " +
+                 "given the other two'); the actual equilibrium still uses the LIVE anchor mass, so heavier/lighter " +
+                 "anchors hover higher/lower. DEFAULT 21 ≈ the mass that makes the project's force balance yield 30 m " +
+                 "at full flare (k=134.3, M=1 kg, g=9.81, maxFlare=3.2).")]
         public float hoverReferenceAnchorMass = 21f;
+        [Tooltip("Reference Mistborn mass (kg) for the hover calibration — the player mass at which a full-flare push " +
+                 "off a `hoverReferenceAnchorMass` metal hovers at `hoverHeightAtFullFlare`. Kept FIXED when deriving " +
+                 "k_hover (NOT the live player mass), so a heavier Mistborn correctly hovers LOWER per canon (weight " +
+                 "affects flight; r_eq ∝ 1/sqrt(M)). If this tracked the live mass, M would cancel out of r_eq and the " +
+                 "weight-affects-flight dependence would be lost. DEFAULT 1 = bodyMass + gearMass default.")]
+        public float hoverReferencePlayerMass = 1f;
         [Tooltip("A Steelpush on a metal whose chest→metal unit vector r̂ has r̂.y < -this counts as 'below me, straight up-and-down' and engages the hover; else the push is an angled launch/arc (canon locomotion). 0.85 = within ~32° of straight down.")]
         [Range(0f, 0.98f)] public float hoverConeMinBelow = 0.85f;
 
@@ -1028,14 +1036,16 @@ namespace BasicRPG.Allomancy
             //
             // The equilibrium HEIGHT is the proof's closed form (Prop 3), derived from the force
             // balance F(r_eq) = M·g — not a hardcoded number:
-            //     r_eq = sqrt( k · m_metal · B / (M · g) ) − δ          (metres; B = flare)
+            //     r_eq = sqrt( k_hover · m_metal · B / (M · g) ) − δ    (metres; B = flare)
             // This is self-consistent with the force model and yields the canon scalings for free:
-            // r_eq ∝ sqrt(flare) (burn harder → hover higher) and r_eq ∝ sqrt(m_metal) (bigger metal
-            // source → hover higher). We NORMALIZE the closed form so a full-flare push off a
-            // `hoverReferenceAnchorMass` metal settles at `hoverHeightAtFullFlare` (~30 m): i.e.
-            // hoverReferenceAnchorMass is the calibration constant the proof's Remark says to pick
-            // ("determine one of k, m_metal, or B given the other two"). Heavier/lighter anchors then
-            // hover proportionally higher/lower (sqrt), and sub-flare hovers lower (sqrt), per Prop 3.
+            // r_eq ∝ sqrt(flare) (burn harder → hover higher), r_eq ∝ sqrt(m_metal) (bigger metal source →
+            // hover higher), r_eq ∝ 1/sqrt(M) (heavier Mistborn → lower; canon: weight affects flight).
+            // k_hover is the CALIBRATION CONSTANT (the proof's Remark: "determine one of k, m_metal, or B
+            // given the other two" — we pick k). It is derived ONCE from the reference condition (canon
+            // target `hoverHeightAtFullFlare` at full flare off a `hoverReferenceAnchorMass` metal for a
+            // `hoverReferencePlayerMass` Mistborn) and then FIXED, so the LIVE anchor mass / flare /
+            // Mistborn mass all shift r_eq per canon. The equation itself is used directly — NOT a
+            // normalized ratio (a ratio would cancel k and distort the sqrt scaling via δ).
             //
             // STABILITY — honest caveat (the proof's one wording error): it calls r_eq "asymptotically
             // stable," but its own linearization M·δr̈ = h'(r_eq)·δr with h'(r_eq)<0 gives δr̈ = −ω²·δr —
@@ -1052,16 +1062,24 @@ namespace BasicRPG.Allomancy
             if (wantPush && anchored && rHat.y < -hoverConeMinBelow)
             {
                 float maxB    = Mathf.Max(allomancer.maxFlareMultiplier, 0.0001f);
-                float M       = Mathf.Max(m_mistborn, 0.05f);
-                float delta_m = rangeDelta * AllomancyUnits.MetersPerUnit;            // δ in metres
+                float M       = Mathf.Max(m_mistborn, 0.05f);                          // LIVE Mistborn mass (canon: weight affects flight)
+                float delta_m = rangeDelta * AllomancyUnits.MetersPerUnit;              // δ in metres
                 float burnB   = Mathf.Max(flare, 0f);                                  // B = flare (burn strength)
-                // Prop 3 closed form (metres) for THIS push, and for the full-flare reference anchor:
-                float rEqMetres         = Mathf.Sqrt(allomanticK * m_metal * burnB / (M * bracingGravity)) - delta_m;
-                float rEqRefFullFlare   = Mathf.Sqrt(allomanticK * hoverReferenceAnchorMass * maxB / (M * bracingGravity)) - delta_m;
-                // Normalize so full-flare on the reference anchor = the canon hoverHeightAtFullFlare,
-                // preserving Prop 3's sqrt(flare)·sqrt(m_metal) scaling relative to that reference.
-                float scale  = rEqRefFullFlare > 0f ? Mathf.Max(rEqMetres / rEqRefFullFlare, 0f) : 0f;
-                float hUnits = hoverHeightAtFullFlare * scale;                            // hover height above the metal (units)
+                // k_hover — the calibration constant (the proof's Remark: "determine one of k, m_metal, or B
+                // given the other two"; we calibrate k). Derived from the reference condition then FIXED, so the
+                // closed form reproduces `hoverHeightAtFullFlare` at the reference while the LIVE m_metal / B / M
+                // still shift r_eq per canon. From F(r_eq)=M·g at the reference (target metres T, ref masses
+                // m_ref / M_ref, full flare maxB):  k_hover = (T + δ)² · M_ref · g / (m_ref · maxB).
+                // FIXED reference masses (NOT the live Mistborn mass) are essential: deriving k_hover with the
+                // live M would cancel M out of r_eq and erase the canon weight-affects-flight dependence.
+                float target_m = hoverHeightAtFullFlare * AllomancyUnits.MetersPerUnit;               // canon hover target (~30 m)
+                float kHover = (target_m + delta_m) * (target_m + delta_m)
+                             * Mathf.Max(hoverReferencePlayerMass, 0.05f) * bracingGravity
+                             / Mathf.Max(hoverReferenceAnchorMass * maxB, 0.0001f);
+                // Prop 3 closed form (metres) — the EQUATION itself, with calibrated k_hover and the LIVE
+                // anchor mass / flare / Mistborn mass (NOT a normalized ratio): r_eq = sqrt(k·m·B/(M·g)) − δ.
+                float rEqMetres = Mathf.Sqrt(kHover * m_metal * burnB / (M * bracingGravity)) - delta_m;
+                float hUnits = Mathf.Max(rEqMetres, 0f) * AllomancyUnits.UnitsPerMeter;  // hover height above the metal (units)
                 mover.SetHoverTarget(primary.transform.position.y + hUnits);
                 allomancer.DrainMetal(MetalType.Steel, activeDrainPerSecond * flare * Time.deltaTime);
                 if (Time.deltaTime > 0f) didActFlag = true;
