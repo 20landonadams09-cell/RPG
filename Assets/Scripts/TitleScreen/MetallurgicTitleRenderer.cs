@@ -25,9 +25,9 @@
  */
 
 using UnityEngine;
+using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
-using TMPro;
 
 namespace BasicRPG.TitleScreen
 {
@@ -41,12 +41,14 @@ namespace BasicRPG.TitleScreen
 
         [Header("Title")]
         public string titleString = "MISTBORN";
-        [Tooltip("Cap height of the letters in world units (at `depth`).")]
-        public float letterHeight = 2.4f;
-        [Tooltip("Horizontal gap between letters, as a fraction of cap height.")]
-        public float letterSpacing = 0.35f;
+        [Tooltip("Cap height of the letters in world units (at `depth`). Sized so the full word fits comfortably inside the title camera's view with margin.")]
+        public float letterHeight = 1.5f;
+        [Tooltip("Horizontal gap between letters, as a fraction of cap height. Tighter than before so MISTBORN reads as one word and fits the screen.")]
+        public float letterSpacing = 0.18f;
         [Tooltip("Line stroke width in world units.")]
-        public float lineWidth = 0.06f;
+        public float lineWidth = 0.08f;
+        [Tooltip("World-space Y offset of the title above screen center, so it sits above the subtitle rather than overlapping it.")]
+        public float verticalOffset = 0.6f;
 
         [Header("Metallurgic Line Colors")]
         [Tooltip("Settled color — semi-transparent blue, like steel lines.")]
@@ -70,7 +72,8 @@ namespace BasicRPG.TitleScreen
         public float flareDuration = 0.6f;
 
         [Header("Subtitle")]
-        public TextMeshProUGUI subtitleText;
+        [Tooltip("Legacy ugui Text (NOT TMP) — pipeline-agnostic, never pink on URP. The renderer fades it in after the title draws.")]
+        public Text subtitleText;
         public string subtitleString = "";
         public float subtitleDelay = 1.5f;
         public float subtitleFadeDuration = 1f;
@@ -214,7 +217,7 @@ namespace BasicRPG.TitleScreen
 
             strokeRoot = new GameObject("MistbornTitleLines").transform;
             strokeRoot.SetParent(cameraTransform, false);
-            strokeRoot.localPosition = new Vector3(0f, 0f, depth);
+            strokeRoot.localPosition = new Vector3(0f, verticalOffset, depth);
             strokeRoot.localRotation = Quaternion.identity;
             strokeRoot.localScale = Vector3.one;
 

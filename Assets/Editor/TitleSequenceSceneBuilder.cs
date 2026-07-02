@@ -697,19 +697,29 @@ public class TitleSequenceSceneBuilder
         // strokes), not a TMP glyph. The line-stroke root parents to the title camera so it
         // stays framed through the dolly — see MetallurgicTitleRenderer. (The prior in-place
         // TMP vertex-colour trace fought TMP's mesh/cull lifecycle and never showed; this
-        // remake is pipeline-agnostic on URP.) The subtitle stays TMP under this canvas.
+        // remake is pipeline-agnostic on URP.) The title sequence now has ZERO TMP dependency:
+        // the subtitle is a legacy ugui Text (LegacyRuntime.ttf) — pipeline-agnostic, never
+        // pink on URP (same approach as TutorialOverlay). TMP_SDF was present + correct here
+        // but still rendered pink in playmode, so the subtitle was moved off TMP entirely.
         var titleRenderer = titleGroup.AddComponent<MetallurgicTitleRenderer>();
         titleRenderer.cameraTransform = camObj.transform;   // line strokes parent here
         titleRenderer.titleString = "MISTBORN";
 
-        var subTMP = CreateTMP(titleGroup.transform, "SubtitleText", "THE FINAL EMPIRE", 28,
-            new Color(COL_TEXT.r, COL_TEXT.g, COL_TEXT.b, 0f), TextAlignmentOptions.Center);
-        subTMP.characterSpacing = 15f;
-        var srt = subTMP.GetComponent<RectTransform>();
+        // Subtitle — legacy ugui Text (NOT TMP) so it can never pink on URP.
+        var subGO = new GameObject("SubtitleText");
+        subGO.transform.SetParent(titleGroup.transform, false);
+        var srt = subGO.AddComponent<RectTransform>();
         srt.anchorMin = srt.anchorMax = srt.pivot = new Vector2(0.5f, 0.5f);
-        srt.sizeDelta = new Vector2(800f, 50f);
-        srt.anchoredPosition = new Vector2(0f, -60f);
-        titleRenderer.subtitleText = subTMP;
+        srt.sizeDelta = new Vector2(900f, 60f);
+        srt.anchoredPosition = new Vector2(0f, -70f);
+        var subText = subGO.AddComponent<Text>();
+        subText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        subText.fontSize = 28;
+        subText.alignment = TextAnchor.MiddleCenter;
+        subText.color = new Color(COL_TEXT.r, COL_TEXT.g, COL_TEXT.b, 0f); // fades in via the renderer + titleGroup CanvasGroup
+        subText.text = "THE FINAL EMPIRE";
+        subText.raycastTarget = false;
+        titleRenderer.subtitleText = subText;
         titleRenderer.subtitleString = "THE FINAL EMPIRE";
 
         // (Skip hint text removed — ESC/Space skip input still works via the
