@@ -43,17 +43,21 @@ namespace BasicRPG.Allomancy
     ///   push down a hallway would drop you unless the anchor is slightly BELOW your centre (so the
     ///   recoil has an upward component that counters gravity), or you use multiple anchors / jump.
     ///   This falls out for free: recoil = -(chest→anchor), so a below-centre anchor pushes you up.
-    /// • Hovering: a FULL push STRAIGHT DOWN off one metal below sustains a hover at ~30 m (~100 ft)
-    ///   — Vin's canonical hover (community calculations + textual references). The initial push's
-    ///   inertia carries you ABOVE that height, gravity swings you slightly below, the sustained push
-    ///   sends you back up — oscillating with shrinking amplitude until you settle at ~30 m. This is
-    ///   an EXPLICIT damped oscillator about H (see the hover regime in ApplyForce + PlayerController's
-    ///   hover channel), because the inverse-square force model only balances gravity at ~2 m for a
-    ///   coin and scaling k to 30 m would ~160× the force and break every wall-launch/coin-shove. It
-    ///   engages only for a near-vertical push on a metal below the chest; an ANGLED push still
-    ///   launches/arcs (the pole-vault/Spider-Man locomotion) — a normal push off to the side doesn't
-    ///   hang, you arc back down. H scales with flare, so burning harder hovers higher; release the
-    ///   push and gravity resumes and you fall.
+    /// • Hovering: a FULL push STRAIGHT DOWN off an ANCHORED metal below sustains a hover at ~30 m
+    ///   (~100 ft) — Vin's canonical hover (community calculations + textual references). The hover
+    ///   height is the anchored-equilibrium CLOSED FORM (Allomantic Force Kernel Addendum, Prop 3):
+    ///   r_eq = sqrt(k·m_metal·B/(M·g)) − δ, derived from the force balance F(r_eq)=M·g — not a
+    ///   hardcoded number. The initial push's inertia carries you ABOVE r_eq, gravity swings you
+    ///   slightly below, the sustained push sends you back up — oscillating with shrinking amplitude
+    ///   until you settle. The closed form is Lyapunov-stable but NOT asymptotically stable (an
+    ///   undamped center — oscillates forever), so PlayerController's hover channel adds ζ=0.35
+    ///   damping about H to supply the energy dissipation the settle requires (proof gives the
+    ///   equilibrium LOCATION; damping gives the SETTLING). It engages only for a near-vertical push
+    ///   on an ANCHORED metal below the chest (Prop 2: a loose coin has no hover equilibrium — pushing
+    ///   down on one flings the coin, mass-ratio recoil, no hover). An ANGLED push still launches/arcs
+    ///   (the pole-vault/Spider-Man locomotion) — a normal push off to the side doesn't hang, you arc
+    ///   back down. r_eq ∝ sqrt(flare)·sqrt(m_metal), so burning harder / pushing off a bigger metal
+    ///   hovers higher; release the push and gravity resumes and you fall.
     ///
     /// Force model (Newton-symmetric with smooth mobility — the locked canon design, per the user's
     /// exact equations):
@@ -179,9 +183,24 @@ namespace BasicRPG.Allomancy
         [Tooltip("Cap on a loose free-metal body's shove velocity (so a light coin doesn't run away to absurd speed).")]
         public float looseObjectMaxSpeed = 25f;
 
-        [Header("Steelpush hover (straight-down push off one metal below → settle at the canon hover height)")]
-        [Tooltip("Hover equilibrium height at FULL flare, in UNITY UNITS. Canon target: Vin sustains a ~100 ft / 30 m hover off one metal below her (community calculations + textual references); 30 m ÷ AllomancyUnits.MetersPerUnit (0.765) ≈ 39.2 units. This is an EXPLICIT hover ceiling, NOT the inverse-square force model: that model balances gravity at only ~2 m for a coin, and scaling k to 30 m would ~160× the force and obliterate every wall-launch / coin-shove. Here the hover is a DAMPED OSCILLATOR about H (see PlayerController.SetHoverTarget): the initial push's inertia carries you ABOVE H, gravity swings you back below, the sustained push sends you up again — oscillating with shrinking amplitude until you settle at H. H scales with flare (H = hoverHeightAtFullFlare · flare/maxFlareMultiplier), so burning harder hovers higher; full flare = this value. Engages only for a near-VERTICAL Steelpush on a metal below the chest (r̂.y < -hoverConeMinBelow); angled pushes keep the launch/arc.")]
-        public float hoverHeightAtFullFlare = 39.2f;   // 30 m in Unity units — Vin's ~100 ft hover
+        [Header("Steelpush hover (anchored, straight-down push → settle at the derived equilibrium)")]
+        [Tooltip("Canon hover height at FULL flare off a `hoverReferenceAnchorMass` metal, in UNITY UNITS. " +
+                 "Used to CALIBRATE the anchored-hover closed form (Allomantic Force Kernel Addendum, Prop 3): " +
+                 "the equilibrium is r_eq = sqrt(k·m_metal·B/(M·g)) − δ, derived from the force balance F(r_eq)=M·g — " +
+                 "NOT a hardcoded hover ceiling. The closed form is normalized so a full-flare push off a " +
+                 "`hoverReferenceAnchorMass` metal settles at this value (~30 m / 39.2 units = Vin's ~100 ft hover; " +
+                 "30 m ÷ AllomancyUnits.MetersPerUnit 0.765). Heavier/lighter anchors then hover proportionally " +
+                 "higher/lower (∝ sqrt(m_metal)) and sub-flare hovers lower (∝ sqrt(flare)), per Prop 3. " +
+                 "Engages only for a near-VERTICAL Steelpush on an ANCHORED metal below the chest " +
+                 "(r̂.y < -hoverConeMinBelow); angled pushes and loose coins keep the launch/arc (Prop 2: no free-body hover).")]
+        public float hoverHeightAtFullFlare = 39.2f;   // 30 m in Unity units — Vin's ~100 ft hover (calibration target)
+        [Tooltip("The anchor mass (kg) at which a FULL-FLARE straight-down Steelpush hovers at `hoverHeightAtFullFlare` " +
+                 "(~30 m). This is the calibration constant the proof's Remark says to pick ('determine one of k, " +
+                 "m_metal, or B given the other two'): the closed form r_eq = sqrt(k·m_metal·B/(M·g)) − δ is normalized " +
+                 "by its full-flare value at this mass, so it = the canon target here and scales ∝ sqrt(m_metal)/" +
+                 "sqrt(hoverReferenceAnchorMass) otherwise. DEFAULT 21 ≈ (30 m + δ)²·M·g/(k·maxFlare) for the project's " +
+                 "k=134.3, M=1 kg, g=9.81, maxFlare=3.2 — the mass that makes the force balance yield 30 m at full flare.")]
+        public float hoverReferenceAnchorMass = 21f;
         [Tooltip("A Steelpush on a metal whose chest→metal unit vector r̂ has r̂.y < -this counts as 'below me, straight up-and-down' and engages the hover; else the push is an angled launch/arc (canon locomotion). 0.85 = within ~32° of straight down.")]
         [Range(0f, 0.98f)] public float hoverConeMinBelow = 0.85f;
 
@@ -998,21 +1017,51 @@ namespace BasicRPG.Allomancy
             if (r < minDistance) return;
             Vector3 rHat = toTarget / r;   // chest → metal (the Push vector on the metal; Pull negates it)
 
-            // ── Hover regime: a near-VERTICAL Steelpush on a metal below the chest ──────────────
-            // A full push straight down off one metal below sustains a hover at the canon height
-            // (Vin ~100 ft / 30 m). The inverse-square force below can't reach that (a coin balances
-            // gravity at ~2 m; scaling k to 30 m ~160×-es the force and breaks every other push), so
-            // the hover is an EXPLICIT damped oscillator about H = metal.y + hoverHeightAtFullFlare·
-            // (flare/maxFlare) — driven by PlayerController's hover channel (rise when below H, fall
-            // when above, inertia overshoots, settles at H). The launch impulse + metal shove are
-            // SKIPPED here (the hover owns vertical; the metal is the ground reference, so a loose
-            // coin doesn't get yanked away and destabilise the target). Still drains (sustained hover
-            // burns the metal). Angled pushes (r̂.y ≥ -hoverConeMinBelow) fall through to the impulse
-            // launch/arc below — canon locomotion. Ironpull never hovers (a below-metal pull is DOWN).
-            if (wantPush && rHat.y < -hoverConeMinBelow)
+            // ── Hover regime: a near-VERTICAL Steelpush on an ANCHORED metal below the chest ────
+            // Per the anchored-hover proof (Allomantic Force Kernel Addendum, Prop 2 / Prop 3 / Cor 1):
+            // a hover equilibrium exists ONLY against an ANCHORED metal (m_metal→∞ — the world absorbs
+            // the reaction, so A's equation becomes M·r̈ = F(r) − M·g). Two FREE bodies have NO
+            // equilibrium (Prop 2: gravity cancels out of the relative equation, r̈ = F·(1/M+1/m) > 0
+            // always — pushing down on a loose coin just flings the coin and barely moves you). Hence
+            // this gate requires `anchored`; a straight-down push on a loose coin falls through to the
+            // impulse path below (coin punted down, mass-ratio upward recoil) — canon.
+            //
+            // The equilibrium HEIGHT is the proof's closed form (Prop 3), derived from the force
+            // balance F(r_eq) = M·g — not a hardcoded number:
+            //     r_eq = sqrt( k · m_metal · B / (M · g) ) − δ          (metres; B = flare)
+            // This is self-consistent with the force model and yields the canon scalings for free:
+            // r_eq ∝ sqrt(flare) (burn harder → hover higher) and r_eq ∝ sqrt(m_metal) (bigger metal
+            // source → hover higher). We NORMALIZE the closed form so a full-flare push off a
+            // `hoverReferenceAnchorMass` metal settles at `hoverHeightAtFullFlare` (~30 m): i.e.
+            // hoverReferenceAnchorMass is the calibration constant the proof's Remark says to pick
+            // ("determine one of k, m_metal, or B given the other two"). Heavier/lighter anchors then
+            // hover proportionally higher/lower (sqrt), and sub-flare hovers lower (sqrt), per Prop 3.
+            //
+            // STABILITY — honest caveat (the proof's one wording error): it calls r_eq "asymptotically
+            // stable," but its own linearization M·δr̈ = h'(r_eq)·δr with h'(r_eq)<0 gives δr̈ = −ω²·δr —
+            // a simple-harmonic UNDAMPED CENTER: stable (Lyapunov), but NOT asymptotically stable; the
+            // amplitude never decays. The "stabilises at ~30 m" behaviour the user specified needs an
+            // energy-dissipation term the force law does not provide, so PlayerController's hover channel
+            // adds ζ=0.35 damping about this H (overshoot → swing below → above → settle). The proof
+            // supplies the equilibrium LOCATION; the damping supplies the SETTLING. They compose.
+            //
+            // The launch impulse + metal shove are SKIPPED here (the hover owns vertical; the anchored
+            // metal is the immovable ground reference). Still drains Steel (sustained hover burns the
+            // metal). Angled pushes (r̂.y ≥ -hoverConeMinBelow) and Ironpull fall through to the impulse
+            // launch/arc below (a below-metal pull is DOWN, never a hover).
+            if (wantPush && anchored && rHat.y < -hoverConeMinBelow)
             {
-                float maxB = Mathf.Max(allomancer.maxFlareMultiplier, 0.0001f);
-                float hUnits = hoverHeightAtFullFlare * Mathf.Clamp01(flare / maxB);
+                float maxB    = Mathf.Max(allomancer.maxFlareMultiplier, 0.0001f);
+                float M       = Mathf.Max(m_mistborn, 0.05f);
+                float delta_m = rangeDelta * AllomancyUnits.MetersPerUnit;            // δ in metres
+                float burnB   = Mathf.Max(flare, 0f);                                  // B = flare (burn strength)
+                // Prop 3 closed form (metres) for THIS push, and for the full-flare reference anchor:
+                float rEqMetres         = Mathf.Sqrt(allomanticK * m_metal * burnB / (M * bracingGravity)) - delta_m;
+                float rEqRefFullFlare   = Mathf.Sqrt(allomanticK * hoverReferenceAnchorMass * maxB / (M * bracingGravity)) - delta_m;
+                // Normalize so full-flare on the reference anchor = the canon hoverHeightAtFullFlare,
+                // preserving Prop 3's sqrt(flare)·sqrt(m_metal) scaling relative to that reference.
+                float scale  = rEqRefFullFlare > 0f ? Mathf.Max(rEqMetres / rEqRefFullFlare, 0f) : 0f;
+                float hUnits = hoverHeightAtFullFlare * scale;                            // hover height above the metal (units)
                 mover.SetHoverTarget(primary.transform.position.y + hUnits);
                 allomancer.DrainMetal(MetalType.Steel, activeDrainPerSecond * flare * Time.deltaTime);
                 if (Time.deltaTime > 0f) didActFlag = true;
