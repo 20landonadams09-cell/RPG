@@ -43,13 +43,17 @@ namespace BasicRPG.Allomancy
     ///   push down a hallway would drop you unless the anchor is slightly BELOW your centre (so the
     ///   recoil has an upward component that counters gravity), or you use multiple anchors / jump.
     ///   This falls out for free: recoil = -(chest→anchor), so a below-centre anchor pushes you up.
-    /// • Hovering at a steady height is HARD and rare in canon (Zane needed a spike; Wax is near a
-    ///   savant) — a normal Misting pushes in BURSTS and launches/arcs, they don't hang. The game's
-    ///   binary hold can't fine-tune force, so it reproduces this: holding push on a ground anchor
-    ///   LAUNCHES you (you arc back down), it doesn't let you sit at a fixed height. Continuous
-    ///   constant-force push (a gameplay simplification vs the lore's "bursts are normal") is
-    ///   enabled; the one concession is a mild drag so an impulse bleeds off instead of carrying
-    ///   you forever (tuning, not canon).
+    /// • Hovering: a FULL push STRAIGHT DOWN off one metal below sustains a hover at ~30 m (~100 ft)
+    ///   — Vin's canonical hover (community calculations + textual references). The initial push's
+    ///   inertia carries you ABOVE that height, gravity swings you slightly below, the sustained push
+    ///   sends you back up — oscillating with shrinking amplitude until you settle at ~30 m. This is
+    ///   an EXPLICIT damped oscillator about H (see the hover regime in ApplyForce + PlayerController's
+    ///   hover channel), because the inverse-square force model only balances gravity at ~2 m for a
+    ///   coin and scaling k to 30 m would ~160× the force and break every wall-launch/coin-shove. It
+    ///   engages only for a near-vertical push on a metal below the chest; an ANGLED push still
+    ///   launches/arcs (the pole-vault/Spider-Man locomotion) — a normal push off to the side doesn't
+    ///   hang, you arc back down. H scales with flare, so burning harder hovers higher; release the
+    ///   push and gravity resumes and you fall.
     ///
     /// Force model (Newton-symmetric with smooth mobility — the locked canon design, per the user's
     /// exact equations):
@@ -174,6 +178,12 @@ namespace BasicRPG.Allomancy
         public float enemyBodyMass = 1f;
         [Tooltip("Cap on a loose free-metal body's shove velocity (so a light coin doesn't run away to absurd speed).")]
         public float looseObjectMaxSpeed = 25f;
+
+        [Header("Steelpush hover (straight-down push off one metal below → settle at the canon hover height)")]
+        [Tooltip("Hover equilibrium height at FULL flare, in UNITY UNITS. Canon target: Vin sustains a ~100 ft / 30 m hover off one metal below her (community calculations + textual references); 30 m ÷ AllomancyUnits.MetersPerUnit (0.765) ≈ 39.2 units. This is an EXPLICIT hover ceiling, NOT the inverse-square force model: that model balances gravity at only ~2 m for a coin, and scaling k to 30 m would ~160× the force and obliterate every wall-launch / coin-shove. Here the hover is a DAMPED OSCILLATOR about H (see PlayerController.SetHoverTarget): the initial push's inertia carries you ABOVE H, gravity swings you back below, the sustained push sends you up again — oscillating with shrinking amplitude until you settle at H. H scales with flare (H = hoverHeightAtFullFlare · flare/maxFlareMultiplier), so burning harder hovers higher; full flare = this value. Engages only for a near-VERTICAL Steelpush on a metal below the chest (r̂.y < -hoverConeMinBelow); angled pushes keep the launch/arc.")]
+        public float hoverHeightAtFullFlare = 39.2f;   // 30 m in Unity units — Vin's ~100 ft hover
+        [Tooltip("A Steelpush on a metal whose chest→metal unit vector r̂ has r̂.y < -this counts as 'below me, straight up-and-down' and engages the hover; else the push is an angled launch/arc (canon locomotion). 0.85 = within ~32° of straight down.")]
+        [Range(0f, 0.98f)] public float hoverConeMinBelow = 0.85f;
 
         [Header("Drain while actively pushing/pulling (extra, on top of passive burn)")]
         public float activeDrainPerSecond = 5f;
@@ -513,6 +523,11 @@ namespace BasicRPG.Allomancy
                 return;
             }
             if (allomancer == null || mover == null || playerCamera == null) return;
+
+            // Default: not hovering this frame. ApplyForce re-enables the hover (SetHoverTarget) only
+            // in the straight-down-push regime; every other frame the player is under gravity, so
+            // releasing the push (or an angled push) drops/arcs them back down.
+            mover.ClearHover();
 
             bool steelBurning = allomancer.IsMetalBurning(MetalType.Steel) &&
                                 allomancer.GetReserve(MetalType.Steel) > 0f;
@@ -982,6 +997,27 @@ namespace BasicRPG.Allomancy
             float r = toTarget.magnitude;
             if (r < minDistance) return;
             Vector3 rHat = toTarget / r;   // chest → metal (the Push vector on the metal; Pull negates it)
+
+            // ── Hover regime: a near-VERTICAL Steelpush on a metal below the chest ──────────────
+            // A full push straight down off one metal below sustains a hover at the canon height
+            // (Vin ~100 ft / 30 m). The inverse-square force below can't reach that (a coin balances
+            // gravity at ~2 m; scaling k to 30 m ~160×-es the force and breaks every other push), so
+            // the hover is an EXPLICIT damped oscillator about H = metal.y + hoverHeightAtFullFlare·
+            // (flare/maxFlare) — driven by PlayerController's hover channel (rise when below H, fall
+            // when above, inertia overshoots, settles at H). The launch impulse + metal shove are
+            // SKIPPED here (the hover owns vertical; the metal is the ground reference, so a loose
+            // coin doesn't get yanked away and destabilise the target). Still drains (sustained hover
+            // burns the metal). Angled pushes (r̂.y ≥ -hoverConeMinBelow) fall through to the impulse
+            // launch/arc below — canon locomotion. Ironpull never hovers (a below-metal pull is DOWN).
+            if (wantPush && rHat.y < -hoverConeMinBelow)
+            {
+                float maxB = Mathf.Max(allomancer.maxFlareMultiplier, 0.0001f);
+                float hUnits = hoverHeightAtFullFlare * Mathf.Clamp01(flare / maxB);
+                mover.SetHoverTarget(primary.transform.position.y + hUnits);
+                allomancer.DrainMetal(MetalType.Steel, activeDrainPerSecond * flare * Time.deltaTime);
+                if (Time.deltaTime > 0f) didActFlag = true;
+                return;
+            }
 
             // ── ONE raw allomantic force (Newton-symmetric: the SAME F drives both bodies). ──
             // SI: r & δ are converted to metres via AllomancyUnits (Vin 2u = 1.53m → 1u = 0.765m). F in Newtons:

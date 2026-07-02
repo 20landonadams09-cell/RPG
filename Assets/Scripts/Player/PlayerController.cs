@@ -52,6 +52,32 @@ namespace BasicRPG.Player
         private const float AllomanticDrag = 3f;    // per-second decay
         private const float AllomanticMaxSpeed = 20f;
 
+        // ── Steelpush hover channel (written by IronSteel while you push straight down on a metal
+        // below you — see IronSteel.ApplyForce's hover regime). The allomantic push above is a
+        // DECAYING velocity impulse + separately-integrated gravity, so on its own it launches/arcs
+        // and never settles at a height — there is no natural hover equilibrium. The hover is therefore
+        // an EXPLICIT underdamped harmonic oscillator about the equilibrium height H:
+        //   a = -ω²·(y - H) - 2·ζ·ω·v
+        // Below H the push exceeds gravity → rise; above H gravity exceeds the weakened push → fall —
+        // so the initial push's INERTIA carries you past H, you swing back below, then above, over and
+        // over, and the damping term settles you at H (exactly the behaviour the user described). H is
+        // set by IronSteel and tuned so a FULL-FLARE push off one metal below settles at ~30 m (~100 ft)
+        // — Vin's canonical hover (per community calculations + textual references; see
+        // basicrpg-allomancy-canon-lockin memory). H ∝ flare/maxFlare, so burning harder hovers higher.
+        // Gravity is NOT separately applied while hovering — it is already in the equilibrium balance.
+        private bool hoverActive;
+        private float hoverTargetWorldY = float.NaN;
+        private const float HoverOmega = 1.2f;         // rad/s — hover spring frequency (period 2π/ω ≈ 5.2 s)
+        private const float HoverDampingZeta = 0.35f;  // underdamped (ζ<1): oscillate above/below H, then settle
+
+        /// <summary>Steelpush hover: oscillate about <paramref name="targetWorldY"/> (the equilibrium
+        /// hover height H) and settle there. Called every frame by IronSteel while you push straight
+        /// down on a metal below you; call <see cref="ClearHover"/> when the push stops or is angled
+        /// away (gravity resumes → you fall/arc back down).</summary>
+        public void SetHoverTarget(float targetWorldY) { hoverActive = true; hoverTargetWorldY = targetWorldY; }
+        /// <summary>End the Steelpush hover — gravity resumes and the player falls/arcs back down.</summary>
+        public void ClearHover() { hoverActive = false; hoverTargetWorldY = float.NaN; }
+
         /// <summary>Pewter writes speed/jump boost multipliers here while burning.</summary>
         public void SetAllomancyScale(float speed, float jump)
         {
@@ -119,8 +145,16 @@ namespace BasicRPG.Player
                 horizVel = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward * speed;
             }
 
-            // Gravity + jump
-            if (controller.isGrounded)
+            // Gravity + jump, OR the Steelpush hover (an underdamped oscillator about the hover
+            // equilibrium H — rises when below H, falls when above, inertia overshoots, settles).
+            if (hoverActive && !float.IsNaN(hoverTargetWorldY))
+            {
+                float dy = transform.position.y - hoverTargetWorldY;        // <0 below H, >0 above
+                float aSpring = -HoverOmega * HoverOmega * dy;              // restoring toward H
+                float aDamp   = -2f * HoverDampingZeta * HoverOmega * verticalVel; // settles the swing
+                verticalVel += (aSpring + aDamp) * Time.deltaTime;           // gravity is in the balance — not added
+            }
+            else if (controller.isGrounded)
             {
                 verticalVel = -2f; // keep the controller pinned to the ground
                 if (!locked && Keybinds.JumpDown())
